@@ -1,0 +1,27 @@
+# Exclude source files
+src/**
+**/*.ts
+tsconfig.json
+.eslintrc.json
+
+# Exclude development files
+.vscode/**
+.vscode-test/**
+.gitignore
+.git/**
+node_modules/**/.bin/**
+
+# Exclude test files
+test-config.json
+test-config.sample.json
+HOW_TO_TEST.md
+TEST_README.md
+
+# Exclude build artifacts
+**/*.map
+
+# INCLUDE these critical files (negation patterns)
+!mako
+!server.conf
+!scripts/**
+!out/**/*.js

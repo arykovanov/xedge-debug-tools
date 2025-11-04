@@ -1,0 +1,83 @@
+-- XEdge Helper Application
+-- Provides REST API endpoints for VSCode extension
+
+xedge.createloader(io)
+
+trace("XEdge Helper App: Initializing...")
+
+-- Create a simple REST API for additional functionality
+local function createRestAPI()
+    local api = {
+        -- Endpoint to restart the device
+        restart = function(request, response)
+            trace("Restart request received from VSCode extension")
+            response:setstatus(200)
+            response:setcontenttype("application/json")
+            response:write('{"status":"restarting"}')
+            
+            -- Schedule restart after response is sent
+            ba.timer(function()
+                trace("Restarting ESP32...")
+                esp32.reset()
+            end):set(1000)
+        end,
+        
+        -- Endpoint to get device info
+        info = function(request, response)
+            trace("Device info request received")
+            
+            local info = {
+                status = "ok",
+                platform = "ESP32",
+                freeHeap = esp32.freeheap and esp32.freeheap() or "unknown",
+                chipModel = esp32.chipmodel and esp32.chipmodel() or "unknown"
+            }
+            
+            response:setstatus(200)
+            response:setcontenttype("application/json")
+            response:write(ba.json.encode(info))
+        end,
+        
+        -- Endpoint to get logs (placeholder for future implementation)
+        logs = function(request, response)
+            response:setstatus(200)
+            response:setcontenttype("application/json")
+            response:write('{"logs":[]}')
+        end
+    }
+    
+    return api
+end
+
+-- Initialize the API
+local api = createRestAPI()
+
+-- Register endpoints
+local dir = ba.create.dir()
+
+-- Restart endpoint
+dir:insert("restart", function(io)
+    api.restart(io.request, io.response)
+    return true
+end, false, 0)
+
+-- Device info endpoint
+dir:insert("info", function(io)
+    api.info(io.request, io.response)
+    return true
+end, false, 0)
+
+-- Logs endpoint
+dir:insert("logs", function(io)
+    api.logs(io.request, io.response)
+    return true
+end, false, 0)
+
+-- Register the directory with the server
+dir:insert()
+
+trace("XEdge Helper App: REST API initialized")
+trace("Available endpoints:")
+trace("  - /rtl/xedge_app/restart  - Restart the ESP32 device")
+trace("  - /rtl/xedge_app/info     - Get device information")
+trace("  - /rtl/xedge_app/logs     - Get device logs (future)")

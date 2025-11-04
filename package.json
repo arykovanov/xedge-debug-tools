@@ -1,0 +1,113 @@
+{
+  "name": "xedge-dev-tools",
+  "displayName": "XEdge Development Tools",
+  "description": "VSCode extension for XEdge platform development on ESP32 devices",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "xedge.reloadApp",
+        "title": "XEdge: Reload Current Application"
+      },
+      {
+        "command": "xedge.reloadAllApps",
+        "title": "XEdge: Reload All Applications"
+      },
+      {
+        "command": "xedge.restartESP32",
+        "title": "XEdge: Restart ESP32 Device"
+      },
+      {
+        "command": "xedge.loadApp",
+        "title": "XEdge: Load Application to ESP32"
+      },
+      {
+        "command": "xedge.createConfig",
+        "title": "XEdge: Create Default Configuration File"
+      },
+      {
+        "command": "xedge.startMakoServer",
+        "title": "XEdge: Start Mako WebDAV Server"
+      },
+      {
+        "command": "xedge.stopMakoServer",
+        "title": "XEdge: Stop Mako WebDAV Server"
+      },
+      {
+        "command": "xedge.restartMakoServer",
+        "title": "XEdge: Restart Mako WebDAV Server"
+      },
+      {
+        "command": "xedge.showMakoLogs",
+        "title": "XEdge: Show Mako Server Logs"
+      },
+      {
+        "command": "xedge.checkAppStatus",
+        "title": "XEdge: Check Application Status"
+      },
+      {
+        "command": "xedge.showExtensionLogs",
+        "title": "XEdge: Show Extension Logs"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "xedge.reloadApp",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "XEdge Development Tools",
+      "properties": {
+        "xedge.configFile": {
+          "type": "string",
+          "default": "xedge-apps.json",
+          "description": "Path to XEdge apps configuration file"
+        },
+        "xedge.autoReload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reload apps when files change"
+        },
+        "xedge.debug.enableSerialLog": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable detailed serial communication logging"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  }
+}
+
