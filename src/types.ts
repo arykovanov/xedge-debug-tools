@@ -31,6 +31,8 @@ export interface AppLoadPayload {
     url: string;
     running: boolean;
     autostart: boolean;
+    dirname: string;
+    priority: string;
 }
 
 /**

@@ -23,5 +23,5 @@ TEST_README.md
 # INCLUDE these critical files (negation patterns)
 !mako
 !server.conf
-!scripts/**
+!vscode_app/**
 !out/**/*.js

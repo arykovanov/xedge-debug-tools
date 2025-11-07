@@ -32,7 +32,7 @@ out/
 ```
 mako                      # WebDAV server (2.2MB, executable)
 server.conf               # Server configuration (77 bytes)
-xedge_app/.preload        # Helper LSP app
+vscode_app/.preload        # Helper LSP app
 ```
 
 ### Configuration Files
@@ -280,7 +280,7 @@ Package includes:
 - ✅ Compiled JavaScript (out/)
 - ✅ Mako executable
 - ✅ server.conf
-- ✅ xedge_app helper
+- ✅ vscode_app helper
 - ✅ Documentation
 - ✅ package.json
 

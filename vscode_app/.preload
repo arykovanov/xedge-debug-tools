@@ -1,0 +1,17 @@
+-- VSCode Helper Application for XEdge
+-- Provides REST API endpoints for the VSCode extension
+-- 
+-- This application will be accessible at: http://{esp32_ip}/vscode_app
+-- 
+-- Individual endpoints are in separate .lsp files:
+--   restart.lsp - POST /vscode_app/restart
+--   info.lsp    - GET /vscode_app/info
+
+xedge.createloader(io)
+
+trace("VSCode Helper App: Initializing...")
+trace("Application accessible at: /vscode_app")
+trace("Endpoints:")
+trace("  POST /vscode_app/restart  - Restart ESP32 device")
+trace("  GET  /vscode_app/info     - Get device information")  
+trace("VSCode Helper App: Ready")

@@ -69,7 +69,7 @@ File > Open Folder > /home/arykovanov/src/realtimelogic/drybox
 
 1. Press `Ctrl+Shift+P`
 2. Type: **XEdge: Load Application to ESP32**
-3. Select: **xedge_app**
+3. Select: **vscode_app**
 4. Wait for confirmation
 
 ### Load Your Application

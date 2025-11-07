@@ -6,7 +6,6 @@ The following files MUST be included in the extension package for it to work:
 
 1. **`mako`** - Mako WebDAV server executable
 2. **`server.conf`** - Mako server configuration
-3. **`scripts/serial_send.py`** - Python serial communication helper
 
 ## Packaging Steps
 
@@ -18,7 +17,6 @@ cd /home/arykovanov/src/realtimelogic/badebug_extension
 # Check required files exist
 ls -l mako
 ls -l server.conf
-ls -l scripts/serial_send.py
 ```
 
 ### 2. Make Mako Executable

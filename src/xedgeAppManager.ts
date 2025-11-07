@@ -1,10 +1,33 @@
 import axios, { AxiosInstance } from 'axios';
 import FormData from 'form-data';
-import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { XEdgeApp, AppLoadPayload, ServerConfig } from './types';
 import { logger } from './logger';
+
+// VSCode API interface (simplified for DI)
+export interface VSCodeAPI {
+    window?: any;
+    workspace?: any;
+}
+
+// Dynamically import vscode to support standalone testing
+let vscode: VSCodeAPI | any;
+try {
+    vscode = require('vscode');
+} catch {
+    // Running in test mode
+    vscode = {
+        window: {
+            showInformationMessage: (msg: string) => log(msg),
+            showWarningMessage: (msg: string) => console.warn(msg)
+        }
+    };
+}
+
+function log(msg: string): void {
+    console.log(`[XEdgeAppManager] ${msg}`);
+}
 
 /**
  * Manages XEdge applications on ESP32 device via REST API
@@ -28,9 +51,9 @@ export class XEdgeAppManager {
      * Initialize the manager with configuration
      */
     public initialize(esp32Ip: string, localIp: string): void {
-        logger.info('Initializing XEdgeAppManager', { esp32Ip, localIp });
         this.esp32Ip = esp32Ip;
         this.localIp = localIp;
+        logger.info('Initializing XEdgeAppManager', { esp32Ip, localIp });
         this.loadServerConfig();
     }
 
@@ -68,12 +91,16 @@ export class XEdgeAppManager {
      */
     private buildAppUrl(appPath: string): string {
         // Convert relative path to absolute if needed
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0];
         let absolutePath = appPath;
         
         if (!path.isAbsolute(appPath) && workspaceFolder) {
             absolutePath = path.join(workspaceFolder.uri.fsPath, appPath);
             logger.debug(`Converted relative path "${appPath}" to absolute: "${absolutePath}"`);
+        } else if (!path.isAbsolute(appPath)) {
+            // In test mode without workspace, assume appPath is already correct or use as-is
+            logger.warn(`Relative path "${appPath}" used without workspace folder`);
+            absolutePath = appPath;
         }
 
         // Format: http://<localIp>/<fsname>/<absolute_path>
@@ -98,10 +125,14 @@ export class XEdgeAppManager {
             
             logger.logResponse('GET', apiUrl, response.status, response.data);
             
-            // Response should be a JSON array of app names
+            // Response is array of objects like [{n: "app_name", s: -1, t: 1234}, ...]
             if (Array.isArray(response.data)) {
-                logger.info(`Found ${response.data.length} applications on ESP32`, response.data);
-                return response.data;
+                const appNames = response.data
+                    .map((app: any) => app.n || app.name || app)
+                    .filter((n: any) => typeof n === 'string');
+                
+                logger.info(`Found ${appNames.length} applications on ESP32`, appNames);
+                return appNames;
             }
             logger.warn('Application list response is not an array', response.data);
             return [];
@@ -156,7 +187,7 @@ export class XEdgeAppManager {
                     `Application "${appName}" is loaded but NOT RUNNING on ESP32. It may not be responding to requests.`,
                     'Start App',
                     'Ignore'
-                ).then(selection => {
+                ).then((selection: string | undefined) => {
                     if (selection === 'Start App') {
                         // Could implement start command here if REST API supports it
                         vscode.window.showInformationMessage('Use XEdge web interface to start the application.');
@@ -174,16 +205,19 @@ export class XEdgeAppManager {
      */
     private async appExists(appName: string): Promise<boolean> {
         try {
-            const appList = await this.getApplicationList();
-            const exists = appList.includes(appName);
-            logger.debug(`App "${appName}" ${exists ? 'exists' : 'does not exist'} on ESP32`);
-            return exists;
+            const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/.appcfg`;
+            logger.logRequest('GET', apiUrl);
+            
+            const response = await this.axiosInstance.get(apiUrl);
+            
+            logger.logResponse('GET', apiUrl, response.status, response.data);
+
+            return response.status === 200 && response.data.name === appName;
         } catch (error) {
-            logger.warn(`Could not check if app "${appName}" exists:`, error);
+            logger.error(`Failed to check if app "${appName}" exists:`, error);
             return false;
         }
-    }
-
+    }   
     /**
      * Load (or reload) an application on ESP32
      * Checks if app already exists and deletes it first if needed
@@ -213,21 +247,11 @@ export class XEdgeAppManager {
                 
                 if (existingStatus.url === newUrl) {
                     logger.info(`URLs match, but will delete and reload to ensure clean state`);
+                    return;
                 } else {
                     logger.info(`URLs differ, deleting existing app before loading`);
+                    await this.deleteApp(app.name);
                 }
-            }
-            
-            // Delete existing app first
-            logger.info(`Deleting existing application "${app.name}" before loading...`);
-            try {
-                await this.deleteApp(app.name);
-                logger.info(`✓ Existing application "${app.name}" deleted`);
-                
-                // Wait a moment for deletion to complete
-                await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (deleteError) {
-                logger.error(`Failed to delete existing app, continuing with load anyway:`, deleteError);
             }
         }
 
@@ -236,10 +260,13 @@ export class XEdgeAppManager {
             name: app.name,
             url: url,
             running: true,  // Start the app immediately after loading
-            autostart: false
+            autostart: false,
+            dirname: app.name,  // dirname is same as app name - makes app accessible at http://{localIp}/{dirname}
+            priority: "0"
         };
 
         logger.debug('Load payload:', payload);
+        logger.info(`App will be accessible at: http://${this.localIp}/${app.name}`);
 
         try {
             const apiUrl = `http://${this.esp32Ip}/rtl/apps/net/.appcfg`;
@@ -286,12 +313,14 @@ export class XEdgeAppManager {
             formData.append('cmd', 'rmt');
             formData.append('file', '.appcfg');
 
-            const apiUrl = `http://${this.esp32Ip}/rtl/apps/fs/`;
+            const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/`;
             logger.logRequest('POST', apiUrl, { cmd: 'rmt', file: '.appcfg' });
             
-            const response = await this.axiosInstance.post(apiUrl, formData, {
-                headers: formData.getHeaders()
-            });
+            // const headers = formData.getHeaders()
+            const headers = {
+                'Content-Type': 'application/json'
+            }
+            const response = await this.axiosInstance.post(apiUrl, formData, {headers: headers});
             
             logger.logResponse('POST', apiUrl, response.status, response.data);
             logger.info(`✓ Application "${appName}" deleted successfully`);
@@ -311,13 +340,14 @@ export class XEdgeAppManager {
         logger.info('Sending restart command to ESP32...');
         
         if (!this.esp32Ip) {
-            const error = 'ESP32 IP not configured. Please connect to WiFi first.';
+            const error = 'ESP32 IP not configured.';
             logger.error(error);
             throw new Error(error);
         }
 
         try {
-            const apiUrl = `http://${this.esp32Ip}/rtl/xedge_app/restart`;
+            // vscode_app is accessible at /vscode_app (dirname)
+            const apiUrl = `http://${this.esp32Ip}/vscode_app/restart.lsp`;
             logger.logRequest('POST', apiUrl);
             
             const response = await this.axiosInstance.post(apiUrl);
@@ -330,6 +360,30 @@ export class XEdgeAppManager {
             const message = error instanceof Error ? error.message : String(error);
             logger.error('Failed to restart ESP32:', error);
             throw new Error(`Failed to restart ESP32: ${message}`);
+        }
+    }
+
+    /**
+     * Get device info from vscode_app helper
+     */
+    public async getDeviceInfo(): Promise<any> {
+        logger.info('Getting device info from ESP32...');
+        
+        if (!this.esp32Ip) {
+            throw new Error('ESP32 IP not configured.');
+        }
+
+        try {
+            const apiUrl = `http://${this.esp32Ip}/vscode_app/info`;
+            logger.logRequest('GET', apiUrl);
+            
+            const response = await this.axiosInstance.get(apiUrl);
+            
+            logger.logResponse('GET', apiUrl, response.status, response.data);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to get device info:', error);
+            throw error;
         }
     }
 

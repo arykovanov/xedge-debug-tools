@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
     logger.info('Initializing managers...');
     appManager = new XEdgeAppManager();
     fileWatcher = new FileWatcher(handleFileChange);
-    makoServer = new MakoServerManager(context.extensionPath);
+    makoServer = new MakoServerManager(context.extensionPath, vscode as any);
 
     // Create status bar item
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -50,6 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
                     makoServer.showOutput();
                 }
             });
+        } else {
+            // Mako server started successfully, load helper app
+            loadHelperApp();
         }
     });
 
@@ -98,6 +101,39 @@ export function deactivate() {
         makoServer.dispose();
     }
     logger.dispose();
+}
+
+/**
+ * Load vscode_app helper application to ESP32
+ */
+async function loadHelperApp(): Promise<void> {
+    logger.info('Loading vscode_app helper application to ESP32...');
+    
+    // Check if ESP32 IP is configured
+    if (!config || !config.esp32.ip) {
+        logger.warn('ESP32 IP not configured, cannot load vscode_app helper. Set esp32.ip in xedge-apps.json');
+        return;
+    }
+    
+    try {
+        // Create app config for vscode_app
+        const helperApp: XEdgeApp = {
+            name: 'vscode_app',
+            path: path.join(path.dirname(__dirname), 'vscode_app'),
+            autoReload: false
+        };
+        
+        logger.info(`Helper app path: ${helperApp.path}`);
+        
+        // Load the helper app
+        await appManager.loadApp(helperApp);
+        logger.info('✓ vscode_app helper application loaded successfully');
+        
+    } catch (error) {
+        logger.error('Failed to load vscode_app helper application:', error);
+        // Don't show error to user - helper app is optional
+        logger.warn('Extension will work but ESP32 restart command may not be available');
+    }
 }
 
 /**
@@ -285,7 +321,7 @@ function writeComprehensiveConfig(configPath: string): void {
                 "1. Update localIp to your machine's IP address",
                 "2. Start Mako server: mako -c server.conf",
                 "3. Connect ESP32 to WiFi (Command Palette)",
-                "4. Load xedge_app helper application",
+                "4. Load vscode_app helper application",
                 "5. Load your applications",
                 "6. Edit files and auto-reload will happen!"
             ]

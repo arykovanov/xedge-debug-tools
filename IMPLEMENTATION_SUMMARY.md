@@ -93,11 +93,11 @@ All commands registered and functional:
 
 ### 5. Helper LSP Application
 
-`xedge_app/.preload` provides REST API endpoints:
+`vscode_app/.preload` provides REST API endpoints:
 
-- **POST /rtl/xedge_app/restart** - Restart ESP32
-- **GET /rtl/xedge_app/info** - Device information
-- **GET /rtl/xedge_app/logs** - Logs (placeholder)
+- **POST /rtl/vscode_app/restart** - Restart ESP32
+- **GET /rtl/vscode_app/info** - Device information
+- **GET /rtl/vscode_app/logs** - Logs (placeholder)
 
 ### 6. Configuration System
 
@@ -155,7 +155,7 @@ Created `/home/arykovanov/src/realtimelogic/drybox/xedge-apps.json` with:
 
 - lsp_app (auto-reload enabled)
 - lsp_app1 (auto-reload enabled)
-- xedge_app helper (auto-reload disabled)
+- vscode_app helper (auto-reload disabled)
 
 ## Architecture
 
@@ -257,7 +257,7 @@ ESP32 loads/reloads application
 │   ├── xedgeAppManager.js
 │   ├── serialManager.js
 │   └── fileWatcher.js
-├── xedge_app/
+├── vscode_app/
 │   └── .preload
 └── server.conf (existing)
 ```

@@ -1,7 +1,17 @@
-import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+
+// VSCode API interface for dependency injection (simplified)
+export interface VSCodeAPI {
+    window: any;
+}
+
+export interface OutputChannel {
+    appendLine: (value: string) => void;
+    show: () => void;
+    dispose: () => void;
+}
 
 /**
  * Manages Mako WebDAV server lifecycle
@@ -11,16 +21,29 @@ export class MakoServerManager {
     private makoProcess: ChildProcess | null = null;
     private serverConfigPath: string;
     private makoPath: string;
-    private outputChannel: vscode.OutputChannel;
+    private outputChannel: OutputChannel;
     private autoRestart: boolean = true;
     private restartDelay: number = 2000; // 2 seconds
     private restartAttempts: number = 0;
     private maxRestartAttempts: number = 5;
     private extensionPath: string;
+    private vscode?: VSCodeAPI;
 
-    constructor(extensionPath: string) {
+    constructor(extensionPath: string, vscode?: VSCodeAPI) {
         this.extensionPath = extensionPath;
-        this.outputChannel = vscode.window.createOutputChannel('Mako WebDAV Server');
+        this.vscode = vscode;
+        
+        // Create output channel (or use mock)
+        if (this.vscode?.window) {
+            this.outputChannel = this.vscode.window.createOutputChannel('Mako WebDAV Server');
+        } else {
+            // Mock output channel for testing
+            this.outputChannel = {
+                appendLine: (value: string) => console.log(`[Mako] ${value}`),
+                show: () => {},
+                dispose: () => {}
+            };
+        }
         
         // Determine paths relative to extension installation
         this.serverConfigPath = path.join(this.extensionPath, 'server.conf');
@@ -92,7 +115,7 @@ export class MakoServerManager {
 
         if (!fs.existsSync(this.serverConfigPath)) {
             this.logError(`Server config not found: ${this.serverConfigPath}`);
-            vscode.window.showErrorMessage('server.conf not found. Cannot start Mako server.');
+            this.vscode?.window.showErrorMessage?.('server.conf not found. Cannot start Mako server.');
             return false;
         }
 
@@ -129,10 +152,10 @@ export class MakoServerManager {
                     }, this.restartDelay);
                 } else if (this.restartAttempts >= this.maxRestartAttempts) {
                     this.logError('Max restart attempts reached. Mako server will not auto-restart.');
-                    vscode.window.showErrorMessage(
+                    this.vscode?.window.showWarningMessage?.(
                         'Mako WebDAV server failed to start after multiple attempts. Applications cannot be loaded to ESP32.',
                         'Show Logs'
-                    ).then(selection => {
+                    ).then?.((selection: string | undefined) => {
                         if (selection === 'Show Logs') {
                             this.outputChannel.show();
                         }
@@ -146,10 +169,10 @@ export class MakoServerManager {
                 this.makoProcess = null;
 
                 if (error.message.includes('ENOENT')) {
-                    vscode.window.showErrorMessage(
+                    this.vscode?.window.showWarningMessage?.(
                         'Mako executable not found. Please install Mako or update the path.',
                         'Show Logs'
-                    ).then(selection => {
+                    ).then?.((selection: string | undefined) => {
                         if (selection === 'Show Logs') {
                             this.outputChannel.show();
                         }
@@ -163,7 +186,7 @@ export class MakoServerManager {
             if (this.makoProcess && !this.makoProcess.killed) {
                 this.log('✓ Mako server started successfully');
                 this.restartAttempts = 0;  // Reset counter on successful start
-                vscode.window.showInformationMessage('Mako WebDAV server started');
+                this.vscode?.window.showWarningMessage?.('Mako WebDAV server started');
                 return true;
             }
 

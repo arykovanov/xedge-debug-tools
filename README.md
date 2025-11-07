@@ -6,7 +6,6 @@ A Visual Studio Code extension for developing and deploying XEdge applications t
 
 - 🔄 **Hot Reload**: Automatically reload applications when files change
 - 📡 **WiFi Setup**: Connect ESP32 to WiFi via serial connection
-- 🎯 **Smart Detection**: Automatically detects which app to reload based on current file
 - 📊 **Status Bar**: Real-time connection status and ESP32 IP display
 - ⌨️ **Keyboard Shortcuts**: Quick reload with `Ctrl+Shift+R` (or `Cmd+Shift+R` on Mac)
 - 🔌 **ESP-IDF Integration**: Works with ESP-IDF extension or standalone configuration
@@ -51,26 +50,7 @@ code --install-extension xedge-dev-tools-0.1.0.vsix
 
 ## Configuration
 
-### 1. Start Mako WebDAV Server
-
-The extension requires a local Mako server to serve files to the ESP32 device via WebDAV.
-
-```bash
-cd /path/to/badebug_extension
-mako -c server.conf
-```
-
-The `server.conf` should contain:
-```lua
-fileserver={
-   fsname="fs",
-   ioname="disk",
-   path="/",
-   noauth=true
-}
-```
-
-### 2. Create Configuration File
+### 1. Create Configuration File
 
 You can create the configuration file in two ways:
 
@@ -89,26 +69,15 @@ Create `xedge-apps.json` in your project root:
 {
   "apps": [
     {
-      "name": "drybox",
-      "path": "/home/arykovanov/src/realtimelogic/drybox/lsp_app",
-      "autoReload": true
-    },
-    {
       "name": "test_app",
-      "path": "./lsp_app1",
+      "path": "./lsp_app",
       "autoReload": false
     }
   ],
-  "localIp": "192.168.0.100",
+  "localIp": "192.168.0.2",
   "esp32": {
-    "ip": "",
-    "serialPort": "/dev/ttyUSB0"
+    "ip": "191.168.0.3",
   },
-  "espIdf": {
-    "useExtension": true,
-    "pythonPath": "",
-    "idfPath": ""
-  }
 }
 ```
 
@@ -123,23 +92,17 @@ Create `xedge-apps.json` in your project root:
 
 - **esp32**:
   - `ip`: ESP32 IP address (auto-populated when connecting to WiFi)
-  - `serialPort`: Serial port for ESP32 (e.g., `/dev/ttyUSB0` on Linux, `COM3` on Windows)
-
-- **espIdf**:
-  - `useExtension`: Try to get settings from ESP-IDF VSCode extension
-  - `pythonPath`: Path to Python executable (optional, uses system Python if empty)
-  - `idfPath`: Path to ESP-IDF directory (optional)
 
 ### 3. Deploy Helper Application
 
-The `xedge_app` helper application provides REST API endpoints for device management.
+The `vscode_app` helper application provides REST API endpoints for device management.
 
 Load it to your ESP32 using the extension:
 1. Add it to `xedge-apps.json`:
    ```json
    {
-     "name": "xedge_app",
-     "path": "/home/arykovanov/src/realtimelogic/badebug_extension/xedge_app",
+     "name": "vscode_app",
+     "path": "./vscode_app",
      "autoReload": false
    }
    ```
@@ -155,14 +118,6 @@ If you don't have `xedge-apps.json` yet:
 1. Press `Ctrl+Shift+P` (Command Palette)
 2. Run: **XEdge: Create Default Configuration File**
 3. Edit the created file with your actual IP addresses and app paths
-
-### Connect ESP32 to WiFi
-
-1. Connect ESP32 to your computer via USB
-2. Open Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
-3. Run: **XEdge: Connect ESP32 to WiFi**
-4. Enter WiFi SSID and password
-5. The ESP32 IP will be automatically captured and saved to config
 
 ### Reload Applications
 
@@ -182,6 +137,9 @@ When `autoReload: true` is set for an app, it will automatically reload when you
   - **XEdge: Load Application to ESP32** - Load a specific app
 
 ### Restart ESP32
+
+Sometimes it is required to restart ESP32. For example, hardware
+resources hadn't released and to release them you can restart device completely.
 
 To perform a full device restart:
 1. Open Command Palette
@@ -231,23 +189,17 @@ ESP32 Device
 
 ### Helper App Endpoints
 
-The `xedge_app` provides these endpoints:
+The `vscode_app` provides these endpoints:
 
-- `POST /rtl/xedge_app/restart` - Restart ESP32 device
-- `GET /rtl/xedge_app/info` - Get device information
-- `GET /rtl/xedge_app/logs` - Get device logs (future feature)
+- `POST /rtl/vscode_app/restart` - Restart ESP32 device
+- `GET /rtl/vscode_app/info` - Get device information
+- `GET /rtl/vscode_app/logs` - Get device logs (future feature)
 
 ## Troubleshooting
 
 ### Extension not activating
 - Check that `xedge-apps.json` exists in workspace root
 - Verify the file is valid JSON
-
-### WiFi connection fails
-- Ensure ESP32 is connected via USB
-- Check serial port in configuration (`/dev/ttyUSB0`, `COM3`, etc.)
-- Verify `pyserial` is installed: `pip install pyserial`
-- Check ESP-IDF extension settings if `useExtension: true`
 
 ### Reload fails
 - Verify Mako server is running: `mako -c server.conf`
@@ -277,7 +229,7 @@ badebug_extension/
 │   ├── xedgeAppManager.ts # REST API client
 │   ├── serialManager.ts   # Serial/WiFi communication
 │   └── fileWatcher.ts     # File change monitoring
-├── xedge_app/
+├── vscode_app/
 │   └── .preload           # Helper LSP application
 ├── server.conf            # Mako server configuration
 ├── package.json           # Extension manifest
@@ -307,16 +259,6 @@ vsce package
 2. Press `F5` to launch Extension Development Host
 3. Open a project with `xedge-apps.json`
 4. Test commands and functionality
-
-## Contributing
-
-Contributions are welcome! Areas for improvement:
-
-- Enhanced error handling and logging
-- Support for multiple ESP32 devices
-- Log streaming from ESP32
-- Application debugging support
-- Configuration UI
 
 ## License
 

@@ -1,4 +1,20 @@
-import * as vscode from 'vscode';
+// Dynamically import vscode to support standalone testing
+let vscode: any;
+try {
+    vscode = require('vscode');
+} catch {
+    // Running in test mode - use mock
+    vscode = {
+        window: {
+            createOutputChannel: (name: string) => ({
+                appendLine: (msg: string) => console.log(msg),
+                show: () => {},
+                clear: () => {},
+                dispose: () => {}
+            })
+        }
+    };
+}
 
 /**
  * Centralized logging for XEdge extension
@@ -6,7 +22,7 @@ import * as vscode from 'vscode';
  */
 export class Logger {
     private static instance: Logger;
-    private outputChannel: vscode.OutputChannel;
+    private outputChannel: any;
     private debugMode: boolean = true;
 
     private constructor() {

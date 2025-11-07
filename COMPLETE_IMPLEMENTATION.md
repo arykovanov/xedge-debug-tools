@@ -57,9 +57,9 @@ The XEdge Development Tools extension is **100% complete** with all requested fe
 - Full mocking for testability
 - Exit codes for CI/CD integration
 
-### 9. ✅ Helper LSP Application (xedge_app)
+### 9. ✅ Helper LSP Application (vscode_app)
 - REST API for device restart
-- Endpoint: `POST /rtl/xedge_app/restart`
+- Endpoint: `POST /rtl/vscode_app/restart`
 - Future endpoints: device info, logs
 
 ### 10. ✅ Complete Documentation
@@ -101,7 +101,7 @@ The XEdge Development Tools extension is **100% complete** with all requested fe
 ├── scripts/
 │   └── serial_send.py        # Serial helper (221 lines, working!)
 │
-├── xedge_app/
+├── vscode_app/
 │   └── .preload              # Helper LSP app with restart endpoint
 │
 ├── .vscode/
@@ -245,13 +245,7 @@ Ctrl+Shift+P > XEdge: Load Application to ESP32
   "localIp": "192.168.0.100",
   "esp32": {
     "ip": "192.168.0.102",
-    "serialPort": "/dev/ttyACM0"
   },
-  "espIdf": {
-    "useExtension": true,
-    "pythonPath": "python3",
-    "idfPath": ""
-  }
 }
 ```
 

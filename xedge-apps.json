@@ -1,0 +1,14 @@
+{
+  "apps": [
+    {
+      "name": "vscode_app",
+      "path": "/home/arykovanov/src/realtimelogic/badebug_extension/vscode_app",
+      "autoReload": false
+    }
+  ],
+  "localIp": "192.168.0.106",
+  "esp32": {
+    "ip": "192.168.0.101"
+  }
+}
+
