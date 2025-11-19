@@ -1,8 +1,8 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
-import { XEdgeApp, AppLoadPayload, ServerConfig } from './types';
+import { XEdgeApp, ApplicationConfig, ServerConfig } from './types';
 import { logger } from './logger';
 
 // VSCode API interface (simplified for DI)
@@ -30,7 +30,7 @@ function log(msg: string): void {
 }
 
 /**
- * Manages XEdge applications on ESP32 device via REST API
+ * Manages Xedge applications on ESP32 device via REST API
  */
 export class XEdgeAppManager {
     private esp32Ip: string = '';
@@ -112,66 +112,76 @@ export class XEdgeAppManager {
     /**
      * Get list of all applications on ESP32
      */
-    public async getApplicationList(): Promise<string[]> {
+    public async getApplicationList(): Promise<ApplicationConfig[]> {
         if (!this.esp32Ip) {
             throw new Error('ESP32 IP not configured.');
         }
 
-        try {
-            const apiUrl = `http://${this.esp32Ip}/rtl/apps/?cmd=lj`;
-            logger.logRequest('GET', apiUrl);
-            
-            const response = await this.axiosInstance.get(apiUrl);
-            
-            logger.logResponse('GET', apiUrl, response.status, response.data);
-            
-            // Response is array of objects like [{n: "app_name", s: -1, t: 1234}, ...]
-            if (Array.isArray(response.data)) {
-                const appNames = response.data
-                    .map((app: any) => app.n || app.name || app)
-                    .filter((n: any) => typeof n === 'string');
-                
-                logger.info(`Found ${appNames.length} applications on ESP32`, appNames);
-                return appNames;
-            }
-            logger.warn('Application list response is not an array', response.data);
-            return [];
-        } catch (error) {
-            logger.error('Failed to get application list:', error);
-            return [];
+        const apiUrl = `http://${this.esp32Ip}/rtl/apps/?cmd=lj`;
+        logger.logRequest('GET', apiUrl);
+        
+        const response = await this.axiosInstance.get(apiUrl);
+        
+        logger.logResponse('GET', apiUrl, response.status, response.data);
+        
+        // Response is array of objects like [{n: "app_name", s: -1, t: 1234}, ...]
+        if (!Array.isArray(response.data)) {
+            throw new Error('Invalid response. Application list is not an array: ' + JSON.stringify(response.data));
         }
+
+        const configs: ApplicationConfig[] = [];
+        for (const app of response.data) {
+            const config = await this.getAppConfig(app.n || app.name || app);
+            if (config) {
+                configs.push(config);
+            }
+        }
+
+        logger.info(`Found ${configs.length} applications on ESP32`, configs);
+        return configs;
     }
 
     /**
      * Get application status
      */
-    public async getAppStatus(appName: string): Promise<{ running: boolean; autostart: boolean; url?: string } | null> {
+    public async getAppConfig(appName: string): Promise<ApplicationConfig | null> {
+        try {
         if (!this.esp32Ip) {
             throw new Error('ESP32 IP not configured.');
         }
 
-        try {
-            const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/.appcfg`;
-            logger.logRequest('GET', apiUrl);
-            
-            const response = await this.axiosInstance.get(apiUrl);
-            
-            logger.logResponse('GET', apiUrl, response.status, response.data);
-            
-            if (response.data && typeof response.data === 'object') {
-                const status = {
-                    running: response.data.running || false,
-                    autostart: response.data.autostart || false,
-                    url: response.data.url || undefined
-                };
-                logger.info(`App "${appName}" status:`, status);
-                return status;
-            }
-            logger.warn(`App "${appName}" status response invalid:`, response.data);
-            return null;
-        } catch (error) {
-            logger.error(`Failed to get status for app "${appName}":`, error);
-            return null;
+        const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/.appcfg`;
+        logger.logRequest('GET', apiUrl);
+        
+        const response = await this.axiosInstance.get(apiUrl);
+        logger.logResponse('GET', apiUrl, response.status, response.data);
+
+        if (response.status !== 200) {
+            throw new Error('Invalid response: ' + JSON.stringify(response));
+        }
+        
+        if (! response.data || typeof response.data !== 'object') {
+            throw new Error('App "' + appName + '" status response invalid: ' + JSON.stringify(response.data));
+        }
+
+        const status: ApplicationConfig = {
+            name: response.data.name,
+            url: response.data.url,
+            running: response.data.running,
+            autostart: response.data.autostart,
+            dirname: response.data.dirname,
+            priority: response.data.priority
+        };
+
+        logger.info(`App "${appName}" status:`, status);
+        return status;
+        } catch (error: any) {
+            const axiosError = error as AxiosError;
+            if (error?.status === 404) {
+                return null;
+            }        
+
+            throw error;
         }
     }
 
@@ -180,9 +190,9 @@ export class XEdgeAppManager {
      */
     private async checkAndWarnAppStatus(appName: string): Promise<void> {
         try {
-            const status = await this.getAppStatus(appName);
+            const config = await this.getAppConfig(appName);
             
-            if (status && !status.running) {
+            if (config && !config.running) {
                 vscode.window.showWarningMessage(
                     `Application "${appName}" is loaded but NOT RUNNING on ESP32. It may not be responding to requests.`,
                     'Start App',
@@ -190,7 +200,7 @@ export class XEdgeAppManager {
                 ).then((selection: string | undefined) => {
                     if (selection === 'Start App') {
                         // Could implement start command here if REST API supports it
-                        vscode.window.showInformationMessage('Use XEdge web interface to start the application.');
+                        vscode.window.showInformationMessage('Use Xedge web interface to start the application.');
                     }
                 });
             }
@@ -201,28 +211,10 @@ export class XEdgeAppManager {
     }
 
     /**
-     * Check if application with given name exists on ESP32
-     */
-    private async appExists(appName: string): Promise<boolean> {
-        try {
-            const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/.appcfg`;
-            logger.logRequest('GET', apiUrl);
-            
-            const response = await this.axiosInstance.get(apiUrl);
-            
-            logger.logResponse('GET', apiUrl, response.status, response.data);
-
-            return response.status === 200 && response.data.name === appName;
-        } catch (error) {
-            logger.error(`Failed to check if app "${appName}" exists:`, error);
-            return false;
-        }
-    }   
-    /**
      * Load (or reload) an application on ESP32
      * Checks if app already exists and deletes it first if needed
      */
-    public async loadApp(app: XEdgeApp): Promise<void> {
+    public async startApp(app: XEdgeApp): Promise<void> {
         logger.info(`Loading application "${app.name}"...`);
         
         if (!this.esp32Ip) {
@@ -231,50 +223,55 @@ export class XEdgeAppManager {
             throw new Error(error);
         }
 
-        // Check if app already exists
-        const exists = await this.appExists(app.name);
-        
-        if (exists) {
-            logger.info(`Application "${app.name}" already exists on ESP32`);
-            
-            // Check if URL matches
-            const existingStatus = await this.getAppStatus(app.name);
-            const newUrl = this.buildAppUrl(app.path);
-            
-            if (existingStatus && existingStatus.url) {
-                logger.debug(`Existing URL: ${existingStatus.url}`);
-                logger.debug(`New URL: ${newUrl}`);
-                
-                if (existingStatus.url === newUrl) {
-                    logger.info(`URLs match, but will delete and reload to ensure clean state`);
-                    return;
-                } else {
-                    logger.info(`URLs differ, deleting existing app before loading`);
-                    await this.deleteApp(app.name);
-                }
-            }
+        const appConfig = await this.getAppConfig(app.name);
+        if (appConfig && appConfig.running) {
+            vscode.window.showInformationMessage(`App "${app.name}" is already running`);
+            return;
         }
 
         const url = this.buildAppUrl(app.path);
-        const payload: AppLoadPayload = {
+        const payload: ApplicationConfig = {
             name: app.name,
             url: url,
             running: true,  // Start the app immediately after loading
-            autostart: false,
+            autostart: appConfig?.autostart || false,
             dirname: app.name,  // dirname is same as app name - makes app accessible at http://{localIp}/{dirname}
-            priority: "0"
+            priority: appConfig?.priority || "0"
         };
 
         logger.debug('Load payload:', payload);
         logger.info(`App will be accessible at: http://${this.localIp}/${app.name}`);
 
         try {
-            const apiUrl = `http://${this.esp32Ip}/rtl/apps/net/.appcfg`;
-            logger.logRequest('PUT', apiUrl, payload);
+            // There is strange invalid behavior:
+            // POST/PUT to rtl/apps/net/.appcfg 
+            //  -- if app not exists, creates new app and returns 201
+            //  -- if app exists, creates new app and append numeric suffix and returns 201
+            // This is completely invalid behavior and should be fixed: if application exists request must fail
+            // Only POST method must create new app, method PUT MUST NOT be allowed to create new app
+
+            // Application configuration is updated with PUT/POST to rtl/apps/{appname}/.appcfg
+            // Also invalid behavior: if app not exists - request must fail
+            // Methods looks like are not respected.
+
+            // REST API must be fixed to be consistent and correct and respect CRUD specifications.
+            let apiUrl = `http://${this.esp32Ip}/rtl/apps/net/.appcfg`;
+            let method = 'POST';
+            if (appConfig) {
+                apiUrl = `http://${this.esp32Ip}/rtl/apps/${app.name}/.appcfg`;
+                method = 'PUT';
+            }
+
+            logger.logRequest(method, apiUrl, payload);
+            let response
+
+            if (method === 'POST') {
+                response = await this.axiosInstance.post(apiUrl, payload);
+            } else {
+                response = await this.axiosInstance.put(apiUrl, payload);
+            }
             
-            const response = await this.axiosInstance.put(apiUrl, payload);
-            
-            logger.logResponse('PUT', apiUrl, response.status, response.data);
+            logger.logResponse(method, apiUrl, response.status, response.data);
             logger.info(`✓ Application "${app.name}" loaded successfully`);
             
             vscode.window.showInformationMessage(`Application "${app.name}" loaded successfully`);
@@ -289,11 +286,48 @@ export class XEdgeAppManager {
     }
 
     /**
+     * Load (or reload) an application on ESP32
+     * Checks if app already exists and deletes it first if needed
+     */
+    public async stopApp(app: XEdgeApp): Promise<void> {
+        logger.info(`Stopping application "${app.name}"...`);
+        
+        if (!this.esp32Ip) {
+            const error = 'ESP32 IP not configured. Please connect to WiFi first.';
+            logger.error(error);
+            throw new Error(error);
+        }
+
+        let appConfig = await this.getAppConfig(app.name);
+        if (!appConfig) {
+            throw new Error(`App "${app.name}" not found`);
+        }
+
+        if (!appConfig.running) {
+            vscode.window.showInformationMessage(`App "${app.name}" is already stopped`);
+            return;
+        }
+
+        appConfig.running = false;
+
+        const apiUrl = `http://${this.esp32Ip}/rtl/apps/${app.name}/.appcfg`;
+        logger.logRequest('PUT', apiUrl, appConfig);
+        
+        const response = await this.axiosInstance.put(apiUrl, appConfig);
+        
+        logger.logResponse('PUT', apiUrl, response.status, response.data);
+        logger.info(`✓ Application "${app.name}" stopped successfully`);
+        
+        vscode.window.showInformationMessage(`Application "${app.name}" stopped successfully`);
+    }
+
+    /**
      * Reload an application (same as load - just repeat PUT)
      */
-    public async reloadApp(app: XEdgeApp): Promise<void> {
+    public async restartApp(app: XEdgeApp): Promise<void> {
         logger.info(`Reloading application "${app.name}"...`);
-        await this.loadApp(app);
+        await this.stopApp(app);
+        await this.startApp(app);
     }
 
     /**

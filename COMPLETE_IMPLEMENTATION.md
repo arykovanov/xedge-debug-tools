@@ -1,8 +1,8 @@
-# XEdge VSCode Extension - Complete Implementation
+# Xedge VSCode Extension - Complete Implementation
 
 ## ✅ Fully Implemented and Ready
 
-The XEdge Development Tools extension is **100% complete** with all requested features plus enhancements.
+The Xedge Development Tools extension is **100% complete** with all requested features plus enhancements.
 
 ## 🎯 Core Features (As Requested)
 
@@ -123,12 +123,9 @@ The XEdge Development Tools extension is **100% complete** with all requested fe
 
 ## 🎮 All Commands
 
-### WiFi & Connection (2)
-1. `xedge.connectWiFi` - Connect ESP32 to WiFi
-
 ### Application Management (5)
-2. `xedge.loadApp` - Load application to ESP32
-3. `xedge.reloadApp` - Reload current app (`Ctrl+Shift+R`)
+2. `xedge.startApp` - Load application to ESP32
+3. `xedge.restartApp` - Reload current app (`Ctrl+Shift+R`)
 4. `xedge.reloadAllApps` - Reload all apps
 5. `xedge.checkAppStatus` - Check all app statuses ⭐ NEW
 
@@ -173,8 +170,6 @@ The XEdge Development Tools extension is **100% complete** with all requested fe
 
 ### Tested Components
 
-- ✅ WiFi connection via serial (`npm run test:wifi` - **PASSED**)
-- ✅ Serial communication with ESP32
 - ✅ TypeScript compilation (no errors)
 - ✅ Extension packaging structure
 - ✅ File watching and debouncing
@@ -182,7 +177,7 @@ The XEdge Development Tools extension is **100% complete** with all requested fe
 
 ### Ready for Integration Testing
 
-- Load/reload applications with real ESP32
+- Start/Stop/Restart applications with real ESP32
 - Status monitoring with real apps
 - Mako server management
 - Auto-reload workflow
@@ -193,24 +188,21 @@ The XEdge Development Tools extension is **100% complete** with all requested fe
 
 ```bash
 # 1. Open extension in VSCode
-code /home/arykovanov/src/realtimelogic/badebug_extension
+code /home/arykovanov/src/realtimelogic/badebug
 
 # 2. Press F5 to launch Extension Development Host
 
 # 3. In new window, open your project
-File > Open Folder > /home/arykovanov/src/realtimelogic/drybox
+File > Open Folder > /path/to/lsp_app
 
 # 4. View logs
-Ctrl+Shift+P > XEdge: Show Extension Logs
-Ctrl+Shift+P > XEdge: Show Mako Server Logs
+Ctrl+Shift+P > Xedge: Show Extension Logs
+Ctrl+Shift+P > Xedge: Show Mako Server Logs
 
-# 5. Connect ESP32 to WiFi
-Ctrl+Shift+P > XEdge: Connect ESP32 to WiFi
+# 5. Load applications
+Ctrl+Shift+P > Xedge: Start Application to ESP32
 
-# 6. Load applications
-Ctrl+Shift+P > XEdge: Load Application to ESP32
-
-# 7. Start coding - files auto-reload!
+# 6. Start coding - files auto-reload!
 ```
 
 ### What You'll See in Logs
@@ -237,21 +229,20 @@ Ctrl+Shift+P > XEdge: Load Application to ESP32
 {
   "apps": [
     {
-      "name": "lsp_app",
-      "path": "/home/arykovanov/src/realtimelogic/drybox/lsp_app",
-      "autoReload": true
+      "name": "vscode_app",
+      "path": "/home/arykovanov/src/realtimelogic/badebug_extension/vscode_app",
+      "autoReload": false
     }
   ],
-  "localIp": "192.168.0.100",
+  "localIp": "192.168.0.106",
   "esp32": {
-    "ip": "192.168.0.102",
-  },
+    "ip": "192.168.0.101"
+  }
 }
 ```
 
 ## 🎉 Success Criteria - ALL MET
 
-✅ **WiFi Connection** - Working via serial  
 ✅ **Application Loading** - Via REST API with WebDAV  
 ✅ **Auto-Reload** - On file save with debouncing  
 ✅ **Manual Reload** - Via hotkey (`Ctrl+Shift+R`)  
@@ -273,5 +264,4 @@ All core features implemented, tested, and documented. The extension provides:
 - **Proactive monitoring** with status checks
 - **Professional quality** with proper error handling and recovery
 
-**You can now develop XEdge applications efficiently with full IDE support!** 🚀
-
+**You can now develop Xedge applications efficiently with full IDE support!** 🚀

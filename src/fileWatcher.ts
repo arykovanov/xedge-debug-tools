@@ -4,7 +4,7 @@ import { XEdgeApp } from './types';
 import { logger } from './logger';
 
 /**
- * Watches for file changes in XEdge application directories
+ * Watches for file changes in Xedge application directories
  */
 export class FileWatcher {
     private watchers: vscode.FileSystemWatcher[] = [];

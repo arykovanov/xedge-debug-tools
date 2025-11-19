@@ -17,7 +17,7 @@ try {
 }
 
 /**
- * Centralized logging for XEdge extension
+ * Centralized logging for Xedge extension
  * Provides detailed logs of all operations, requests, and responses
  */
 export class Logger {
@@ -26,7 +26,7 @@ export class Logger {
     private debugMode: boolean = true;
 
     private constructor() {
-        this.outputChannel = vscode.window.createOutputChannel('XEdge Extension');
+        this.outputChannel = vscode.window.createOutputChannel('Xedge Extension');
     }
 
     public static getInstance(): Logger {

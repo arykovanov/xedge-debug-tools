@@ -1,4 +1,4 @@
-# XEdge Development Tools - Quick Start Guide
+# Xedge Development Tools - Quick Start Guide
 
 ## Setup (5 minutes)
 
@@ -8,7 +8,7 @@ If you don't have `xedge-apps.json` in your project:
 
 1. Open your project in VSCode
 2. Press `Ctrl+Shift+P`
-3. Type: **XEdge: Create Default Configuration File**
+3. Type: **Xedge: Create Default Configuration File**
 4. A comprehensive config file will be created with all options documented
 
 Or manually create `/home/arykovanov/src/realtimelogic/drybox/xedge-apps.json`:
@@ -61,21 +61,21 @@ File > Open Folder > /home/arykovanov/src/realtimelogic/drybox
 
 1. Ensure ESP32 is connected via USB
 2. Press `Ctrl+Shift+P` (Command Palette)
-3. Type: **XEdge: Connect ESP32 to WiFi**
+3. Type: **Xedge: Connect ESP32 to WiFi**
 4. Enter your WiFi SSID and password
 5. Wait for IP address to be captured
 
 ### Load Helper Application
 
 1. Press `Ctrl+Shift+P`
-2. Type: **XEdge: Load Application to ESP32**
+2. Type: **Xedge: Load Application to ESP32**
 3. Select: **vscode_app**
 4. Wait for confirmation
 
 ### Load Your Application
 
 1. Press `Ctrl+Shift+P`
-2. Type: **XEdge: Load Application to ESP32**
+2. Type: **Xedge: Load Application to ESP32**
 3. Select: **lsp_app** (or your app name)
 4. Wait for confirmation
 
@@ -88,20 +88,20 @@ Just edit your `.lua`, `.preload`, or `.config` files and save. The extension wi
 ### Manual Reload
 
 - Quick: Press `Ctrl+Shift+R` while editing an app file
-- Menu: `Ctrl+Shift+P` → **XEdge: Reload Current Application**
+- Menu: `Ctrl+Shift+P` → **Xedge: Reload Current Application**
 
 ### Status Bar
 
 Look at the bottom-left corner:
-- ✅ **XEdge: 192.168.0.X** - Connected and ready
-- 🔌 **XEdge: Disconnected** - Need to connect to WiFi
+- ✅ **Xedge: 192.168.0.X** - Connected and ready
+- 🔌 **Xedge: Disconnected** - Need to connect to WiFi
 
 Click it to quickly reload the current app.
 
 ## Troubleshooting
 
 ### "ESP32 IP not configured"
-- Run: **XEdge: Connect ESP32 to WiFi** first
+- Run: **Xedge: Connect ESP32 to WiFi** first
 - Or manually set `esp32.ip` in `xedge-apps.json`
 
 ### "Failed to load app"
@@ -124,7 +124,7 @@ Click it to quickly reload the current app.
 1. **Multiple Apps**: Add all your apps to `xedge-apps.json` and switch between them seamlessly
 2. **Network**: Keep ESP32 and dev machine on the same network for best performance
 3. **Logs**: Check VSCode's Output panel (View > Output) for detailed logs
-4. **Restart**: If things get stuck, use **XEdge: Restart ESP32 Device**
+4. **Restart**: If things get stuck, use **Xedge: Restart ESP32 Device**
 
 ## Example Workflow
 

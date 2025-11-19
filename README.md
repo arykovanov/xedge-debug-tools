@@ -1,6 +1,6 @@
-# XEdge Development Tools for VSCode
+# Xedge Development Tools for VSCode
 
-A Visual Studio Code extension for developing and deploying XEdge applications to ESP32 devices. This extension provides hot-reloading, automatic file watching, and seamless integration with ESP-IDF tools.
+A Visual Studio Code extension for developing and deploying Xedge applications to ESP32 devices. This extension provides hot-reloading, automatic file watching, and seamless integration with ESP-IDF tools.
 
 ## Features
 
@@ -16,7 +16,7 @@ A Visual Studio Code extension for developing and deploying XEdge applications t
 - Node.js and npm
 - Python with `pyserial` package (`pip install pyserial`)
 - Mako server for WebDAV functionality
-- ESP32 device with XEdge firmware
+- ESP32 device with Xedge firmware
 
 ## Installation
 
@@ -58,7 +58,7 @@ You can create the configuration file in two ways:
 
 1. Open your project folder in VSCode
 2. Press `Ctrl+Shift+P` (Command Palette)
-3. Type: **XEdge: Create Default Configuration File**
+3. Type: **Xedge: Create Default Configuration File**
 4. A comprehensive `xedge-apps.json` will be created with all options documented
 
 #### Option B: Create Manually
@@ -83,8 +83,8 @@ Create `xedge-apps.json` in your project root:
 
 #### Configuration Options
 
-- **apps**: Array of XEdge applications
-  - `name`: Application name (used in XEdge)
+- **apps**: Array of Xedge applications
+  - `name`: Application name (used in Xedge)
   - `path`: Absolute or relative path to LSP application directory
   - `autoReload`: Enable/disable automatic reload on file changes
 
@@ -107,7 +107,7 @@ Load it to your ESP32 using the extension:
    }
    ```
 
-2. Use the command: **XEdge: Load Application to ESP32**
+2. Use the command: **Xedge: Load Application to ESP32**
 
 ## Usage
 
@@ -116,7 +116,7 @@ Load it to your ESP32 using the extension:
 If you don't have `xedge-apps.json` yet:
 
 1. Press `Ctrl+Shift+P` (Command Palette)
-2. Run: **XEdge: Create Default Configuration File**
+2. Run: **Xedge: Create Default Configuration File**
 3. Edit the created file with your actual IP addresses and app paths
 
 ### Reload Applications
@@ -132,9 +132,9 @@ When `autoReload: true` is set for an app, it will automatically reload when you
 
 - **Quick Reload**: Press `Ctrl+Shift+R` (or `Cmd+Shift+R`) while editing an app file
 - **Command Palette**: 
-  - **XEdge: Reload Current Application** - Reload app for current file
-  - **XEdge: Reload All Applications** - Reload all configured apps
-  - **XEdge: Load Application to ESP32** - Load a specific app
+  - **Xedge: Reload Current Application** - Reload app for current file
+  - **Xedge: Reload All Applications** - Reload all configured apps
+  - **Xedge: Load Application to ESP32** - Load a specific app
 
 ### Restart ESP32
 
@@ -143,7 +143,7 @@ resources hadn't released and to release them you can restart device completely.
 
 To perform a full device restart:
 1. Open Command Palette
-2. Run: **XEdge: Restart ESP32 Device**
+2. Run: **Xedge: Restart ESP32 Device**
 3. Confirm the restart
 
 ## File Watching
@@ -171,7 +171,7 @@ Click the status bar item to quickly reload the current application.
 
 1. **WebDAV Server** (Mako): Serves LSP application files from local machine
 2. **VSCode Extension**: Sends reload commands to ESP32
-3. **ESP32 (XEdge)**: Fetches updated files from WebDAV server
+3. **ESP32 (Xedge)**: Fetches updated files from WebDAV server
 
 ### Load/Reload Process
 
@@ -268,7 +268,7 @@ vsce package
 
 For issues and questions:
 - Check the troubleshooting section above
-- Review ESP-IDF and XEdge documentation
+- Review ESP-IDF and Xedge documentation
 - Check serial monitor output for errors
 
 ## Version History

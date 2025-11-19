@@ -139,7 +139,7 @@ async function runIntegrationTest(): Promise<boolean> {
     await sleep(2000); // Wait for server to be ready
     
     // Step 3: Initialize app manager
-    log('\n[Step 3] Initializing XEdge App Manager...', colors.blue);
+    log('\n[Step 3] Initializing Xedge App Manager...', colors.blue);
     const appManager = new XEdgeAppManager();
     appManager.initialize(config.esp32.ip, config.localIp);
     log('✓ App manager initialized', colors.green);
@@ -156,7 +156,7 @@ async function runIntegrationTest(): Promise<boolean> {
     };
     
     try {
-        await appManager.loadApp(vscodeApp);
+        await appManager.startApp(vscodeApp);
         log('✓ vscode_app loaded to ESP32', colors.green);
         
         // Wait for app to initialize

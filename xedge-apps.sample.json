@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "XEdge Development Tools Configuration File - Complete Reference",
+  "$comment": "Xedge Development Tools Configuration File - Complete Reference",
   "apps": [
     {
       "name": "example_app",
@@ -15,7 +15,7 @@
       "$comment": "Second example with absolute path and auto-reload disabled"
     }
   ],
-  "$apps_comment": "Array of XEdge applications to manage. Each app needs: name (identifier), path (absolute or relative), autoReload (true/false for file watching)",
+  "$apps_comment": "Array of Xedge applications to manage. Each app needs: name (identifier), path (absolute or relative), autoReload (true/false for file watching)",
   "localIp": "192.168.0.100",
   "$localIp_comment": "REQUIRED: IP address of the machine running VSCode and Mako WebDAV server. ESP32 will fetch app files from this IP. Find your IP with: ip addr show | grep 'inet ' | grep -v 127.0.0.1 (Linux) or ipconfig (Windows)",
   "esp32": {
@@ -28,14 +28,14 @@
     "webdav_url_format": "http://<localIp>/<fsname>/<app_absolute_path>",
     "fsname_source": "Read from server.conf in extension directory",
     "commands": [
-      "XEdge: Load Application to ESP32 - Load specific app",
-      "XEdge: Reload Current Application - Quick reload (Ctrl+Shift+R)",
-      "XEdge: Reload All Applications - Reload all configured apps",
-      "XEdge: Check Application Status - View running status",
-      "XEdge: Restart ESP32 Device - Full device restart",
-      "XEdge: Start/Stop/Restart Mako WebDAV Server - Server control",
-      "XEdge: Show Extension Logs - View detailed logs",
-      "XEdge: Create Default Configuration File - Create this file"
+      "Xedge: Load Application to ESP32 - Load specific app",
+      "Xedge: Reload Current Application - Quick reload (Ctrl+Shift+R)",
+      "Xedge: Reload All Applications - Reload all configured apps",
+      "Xedge: Check Application Status - View running status",
+      "Xedge: Restart ESP32 Device - Full device restart",
+      "Xedge: Start/Stop/Restart Mako WebDAV Server - Server control",
+      "Xedge: Show Extension Logs - View detailed logs",
+      "Xedge: Create Default Configuration File - Create this file"
     ],
     "workflow": [
       "1. Update localIp to your machine's IP address",

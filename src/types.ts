@@ -1,5 +1,5 @@
 /**
- * XEdge Application Configuration
+ * Xedge Application Configuration
  */
 export interface XEdgeApp {
     name: string;
@@ -24,9 +24,9 @@ export interface XEdgeConfig {
 }
 
 /**
- * App Load/Reload Payload for XEdge REST API
+ * App Load/Reload Payload for Xedge REST API
  */
-export interface AppLoadPayload {
+export interface ApplicationConfig {
     name: string;
     url: string;
     running: boolean;

@@ -215,7 +215,7 @@ async function runTests(): Promise<boolean> {
         log('\nTroubleshooting:', colors.yellow);
         log('1. Ensure ESP32 is on and connected to network', colors.yellow);
         log('2. Verify ESP32 IP is correct in xedge-apps.json', colors.yellow);
-        log('3. Load vscode_app to ESP32: Ctrl+Shift+P > XEdge: Load Application', colors.yellow);
+        log('3. Load vscode_app to ESP32: Ctrl+Shift+P > Xedge: Load Application', colors.yellow);
         log('4. Check extension logs for errors', colors.yellow);
         return false;
     }

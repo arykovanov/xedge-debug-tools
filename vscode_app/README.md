@@ -31,7 +31,7 @@ Restarts the ESP32 device.
 }
 ```
 
-**Used by**: `XEdge: Restart ESP32 Device` command
+**Used by**: `Xedge: Restart ESP32 Device` command
 
 ### GET /vscode_app/info
 
@@ -81,7 +81,7 @@ If automatic loading fails:
 
 ```bash
 # In VSCode:
-Ctrl+Shift+P > XEdge: Load Application to ESP32 > vscode_app
+Ctrl+Shift+P > Xedge: Load Application to ESP32 > vscode_app
 ```
 
 ## Testing
@@ -115,7 +115,7 @@ curl -X POST http://192.168.0.101/vscode_app/restart
 1. Create new `.lsp` file in `vscode_app/` directory
 2. Implement endpoint logic using LSP syntax
 3. File name becomes the URL path
-4. No need to register in `.preload` - XEdge auto-discovers .lsp files
+4. No need to register in `.preload` - Xedge auto-discovers .lsp files
 
 Example:
 ```lua
@@ -167,7 +167,7 @@ Verify:
 ### Check extension logs
 
 ```
-Ctrl+Shift+P > XEdge: Show Extension Logs
+Ctrl+Shift+P > Xedge: Show Extension Logs
 ```
 
 Look for:

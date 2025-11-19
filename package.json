@@ -1,7 +1,7 @@
 {
   "name": "xedge-dev-tools",
-  "displayName": "XEdge Development Tools",
-  "description": "VSCode extension for XEdge platform development on ESP32 devices",
+  "displayName": "Xedge Development Tools",
+  "description": "VSCode extension for Xedge platform development on ESP32 devices",
   "version": "0.1.0",
   "engines": {
     "vscode": "^1.80.0"
@@ -16,65 +16,69 @@
   "contributes": {
     "commands": [
       {
-        "command": "xedge.reloadApp",
-        "title": "XEdge: Reload Current Application"
+        "command": "xedge.startApp",
+        "title": "Xedge: Start Application on ESP32"
+      },
+      {
+        "command": "xedge.stopApp",
+        "title": "Xedge: Stop Application on ESP32"
+      },
+      {
+        "command": "xedge.restartApp",
+        "title": "Xedge: Restart Application on ESP32"
       },
       {
         "command": "xedge.reloadAllApps",
-        "title": "XEdge: Reload All Applications"
+        "title": "Xedge: Restart All Applications"
       },
       {
         "command": "xedge.restartESP32",
-        "title": "XEdge: Restart ESP32 Device"
-      },
-      {
-        "command": "xedge.loadApp",
-        "title": "XEdge: Load Application to ESP32"
+        "title": "Xedge: Restart ESP32 Device"
       },
       {
         "command": "xedge.createConfig",
-        "title": "XEdge: Create Default Configuration File"
+        "title": "Xedge: Create Default Configuration File"
       },
       {
         "command": "xedge.startMakoServer",
-        "title": "XEdge: Start Mako WebDAV Server"
+        "title": "Xedge: Start Mako WebDAV Server"
       },
       {
         "command": "xedge.stopMakoServer",
-        "title": "XEdge: Stop Mako WebDAV Server"
+        "title": "Xedge: Stop Mako WebDAV Server"
       },
       {
         "command": "xedge.restartMakoServer",
-        "title": "XEdge: Restart Mako WebDAV Server"
+        "title": "Xedge: Restart Mako WebDAV Server"
       },
       {
         "command": "xedge.showMakoLogs",
-        "title": "XEdge: Show Mako Server Logs"
+        "title": "Xedge: Show Mako Server Logs"
       },
       {
         "command": "xedge.checkAppStatus",
-        "title": "XEdge: Check Application Status"
+        "title": "Xedge: Check Application Status"
       },
       {
         "command": "xedge.showExtensionLogs",
-        "title": "XEdge: Show Extension Logs"
+        "title": "Xedge: Show Extension Logs"
       }
     ],
     "keybindings": [
       {
-        "command": "xedge.reloadApp",
+        "command": "xedge.restartApp",
         "key": "ctrl+shift+r",
         "mac": "cmd+shift+r",
         "when": "editorTextFocus"
       }
     ],
     "configuration": {
-      "title": "XEdge Development Tools",
+      "title": "Xedge Development Tools",
       "properties": {
         "xedge.configFile": {
           "type": "string",
           "default": "xedge-apps.json",
-          "description": "Path to XEdge apps configuration file"
+          "description": "Path to Xedge apps configuration file"
         },
         "xedge.autoReload": {
           "type": "boolean",
