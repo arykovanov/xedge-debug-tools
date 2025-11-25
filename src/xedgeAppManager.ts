@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance } from 'axios';
 import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
-import { XEdgeApp, ApplicationConfig, ServerConfig } from './types';
+import { XEdgeApp, ApplicationConfig } from './types';
 import { logger } from './logger';
 
 // VSCode API interface (simplified for DI)
@@ -177,7 +177,7 @@ export class XEdgeAppManager {
         return status;
         } catch (error: any) {
             const axiosError = error as AxiosError;
-            if (error?.status === 404) {
+            if (axiosError?.status === 404) {
                 return null;
             }        
 
@@ -256,22 +256,14 @@ export class XEdgeAppManager {
 
             // REST API must be fixed to be consistent and correct and respect CRUD specifications.
             let apiUrl = `http://${this.esp32Ip}/rtl/apps/net/.appcfg`;
-            let method = 'POST';
+            // It application exists on ESP32, we must update existing app by different URL.
             if (appConfig) {
                 apiUrl = `http://${this.esp32Ip}/rtl/apps/${app.name}/.appcfg`;
-                method = 'PUT';
             }
 
-            logger.logRequest(method, apiUrl, payload);
-            let response
-
-            if (method === 'POST') {
-                response = await this.axiosInstance.post(apiUrl, payload);
-            } else {
-                response = await this.axiosInstance.put(apiUrl, payload);
-            }
-            
-            logger.logResponse(method, apiUrl, response.status, response.data);
+            logger.logRequest('PUT', apiUrl, payload);
+            const response = await this.axiosInstance.put(apiUrl, payload);
+            logger.logResponse('PUT', apiUrl, response.status, response.data);
             logger.info(`✓ Application "${app.name}" loaded successfully`);
             
             vscode.window.showInformationMessage(`Application "${app.name}" loaded successfully`);
@@ -298,7 +290,7 @@ export class XEdgeAppManager {
             throw new Error(error);
         }
 
-        let appConfig = await this.getAppConfig(app.name);
+        const appConfig = await this.getAppConfig(app.name);
         if (!appConfig) {
             throw new Error(`App "${app.name}" not found`);
         }

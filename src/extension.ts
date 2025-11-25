@@ -125,7 +125,7 @@ async function loadHelperApp(): Promise<void> {
             return;
         }
     
-        let status = await appManager.getAppConfig('vscode_app')
+        const status = await appManager.getAppConfig('vscode_app')
         if (status && status.running) {
             logger.info('vscode_app helper application already exists on ESP32');
             loadHelperAppBusy = false;
