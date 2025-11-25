@@ -2,6 +2,10 @@
   "name": "xedge-dev-tools",
   "displayName": "Xedge Development Tools",
   "description": "VSCode extension for Xedge platform development on ESP32 devices",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arykovanov/xedge-debug-tools.git"
+  },
   "version": "0.1.0",
   "engines": {
     "vscode": "^1.80.0"
@@ -94,7 +98,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "package": "vsce package",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
@@ -108,6 +112,7 @@
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^3.7.0",
     "eslint": "^8.45.0",
     "typescript": "^5.1.6"
   },
