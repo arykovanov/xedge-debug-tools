@@ -11,7 +11,6 @@ let appManager: XEdgeAppManager;
 let fileWatcher: FileWatcher;
 let statusBarItem: vscode.StatusBarItem;
 let config: XEdgeConfig | null = null;
-let configFilePath: string = '';
 let makoServer: MakoServerManager;
 let helperAppWhatcher: NodeJS.Timeout | null = null;
 
@@ -102,6 +101,8 @@ export function deactivate() {
         makoServer.dispose();
     }
     logger.dispose();
+
+    helperAppWhatcher?.close();
 }
 
 /**
@@ -144,10 +145,7 @@ async function loadHelperApp(): Promise<void> {
 
         // Load the helper app
         await appManager.startApp(helperApp);
-
-        const appsAfter = await appManager.getApplicationList();
-
-        
+       
         logger.info('✓ vscode_app helper application loaded successfully');
     } catch (error) {
         logger.error('Failed to load vscode_app helper application:', error);
@@ -159,21 +157,54 @@ async function loadHelperApp(): Promise<void> {
 }
 
 /**
+ * Find config file in workspace folder or upwards from currently opened file
+ */
+function findConfigFile(workspaceFolders: readonly vscode.WorkspaceFolder[]): string | null {
+    // Search for 'xedge-apps.json' upwards from currently opened file, or fall back to workspace root
+    let configPath: string | null = null;
+    const activeEditor = vscode.window.activeTextEditor;
+    let activeWorkspaceFolder: string | undefined;
+    // Open config file the workspace folder containing current editor
+    if (!activeEditor) {
+        return null;
+    }
+
+    const activePath = activeEditor.document.uri.fsPath
+    for (const [, workspaceFolder] of workspaceFolders.entries()) {
+        if (activePath.startsWith(workspaceFolder.uri.fsPath)) {
+            activeWorkspaceFolder = workspaceFolder.uri.fsPath;
+            break;
+        }
+    }
+
+    if (activeWorkspaceFolder) {
+        configPath = path.join(activeWorkspaceFolder, 'xedge-apps.json');
+    }
+    
+    return configPath;
+}
+
+/**
  * Load configuration from xedge-apps.json
  */
+
 function loadConfiguration(): void {
     logger.info('Loading configuration...');
     
     try {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
             logger.warn('No workspace folder found');
             return;
         }
 
-        const configFileName = vscode.workspace.getConfiguration('xedge').get<string>('configFile') || 'xedge-apps.json';
-        configFilePath = path.join(workspaceFolder.uri.fsPath, configFileName);
-        
+        const configFilePath = findConfigFile(workspaceFolders);
+
+        if (!configFilePath) {
+            logger.warn('No config file found');
+            return;
+        }
+
         logger.debug(`Looking for config file: ${configFilePath}`);
 
         if (!fs.existsSync(configFilePath)) {
@@ -357,15 +388,6 @@ function writeComprehensiveConfig(configPath: string): void {
     vscode.workspace.openTextDocument(configPath).then(doc => {
         vscode.window.showTextDocument(doc);
     });
-}
-
-/**
- * Save configuration to file
- */
-function saveConfiguration(): void {
-    if (config && configFilePath) {
-        fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2));
-    }
 }
 
 /**
@@ -660,10 +682,10 @@ async function checkAppStatusCommand(): Promise<void> {
         }
 
         // Show status in quick pick
-        const selected = await vscode.window.showQuickPick(statusMessages, {
-            placeHolder: 'Application Status on ESP32',
-            canPickMany: false
-        });
+        // const selected = await vscode.window.showQuickPick(statusMessages, {
+        //     placeHolder: 'Application Status on ESP32',
+        //     canPickMany: false
+        // });
 
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
