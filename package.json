@@ -2,6 +2,11 @@
   "name": "xedge-dev-tools",
   "displayName": "Xedge Development Tools",
   "description": "VSCode extension for Xedge platform development on ESP32 devices",
+  "author": {
+    "name": "Alexander Rykovanov",
+    "email": "alexander@realtimelogic.com",
+    "url": "https://realtimelogic.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/arykovanov/xedge-debug-tools.git"
