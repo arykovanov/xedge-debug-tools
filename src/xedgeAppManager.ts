@@ -213,6 +213,15 @@ export class XEdgeAppManager {
         await this.startApp(app);
     }
 
+    public async startAppByName(appName: string): Promise<void> {
+        const app = this.config.apps.find((app: XEdgeApp) => app.name === appName);
+        if (!app) {
+            throw new Error(`App "${appName}" not found`);
+        }
+
+        await this.startApp(app);
+    }
+
     private async startApp(app: XEdgeApp): Promise<void> {
         logger.info(`Loading application "${app.name}"...`);
     
@@ -276,6 +285,14 @@ export class XEdgeAppManager {
      */
     public async stopAppForPath(appPath: string): Promise<void> {
         const app = await this.getAppConfigByFilePath(appPath);
+        await this.stopApp(app);
+    }
+
+    public async stopAppByName(appName: string): Promise<void> {
+        const app = this.config.apps.find((app: XEdgeApp) => app.name === appName);
+        if (!app) {
+            throw new Error(`App "${appName}" not found`);
+        }
         await this.stopApp(app);
     }
 

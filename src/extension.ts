@@ -286,23 +286,12 @@ function updateStatusBar(status: ConnectionStatus, ip?: string): void {
 async function restartAppCommand(): Promise<void> {
     
     try {
-
         logger.logCommand('restartApp', 'User initiated app restart');
 
-        // Try to determine app from current file
-        const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor) {
-            return;
-        }
-
-        for (const [rootPath, manager] of appManagers.entries()) {
-            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
-                manager.stopAppForPath(activeEditor.document.uri.fsPath).then(() => {
-                    manager.startAppOfFile(activeEditor.document.uri.fsPath)
-                });
-                break
-            }
-        }
+        await selectApp(async (appName, manager) => {
+            await manager.stopAppByName(appName);
+            await manager.startAppByName(appName);
+        });
 
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -356,22 +345,40 @@ async function restartESP32Command(): Promise<void> {
     }
 }
 
+async function selectApp(callback: (appName: string, appManager: XEdgeAppManager) => Promise<void>): Promise<void> {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (!activeEditor) {
+        return;
+    }
+
+    // Run application of current file
+    for (const [rootPath, manager] of appManagers.entries()) {
+        if (!activeEditor.document.uri.fsPath.startsWith(rootPath)) {
+            continue;
+        }
+
+            // Ask user to select application to load
+        const appName = await vscode.window.showQuickPick(manager.getAppNames(), {
+            placeHolder: 'Select application to load'
+        });
+
+        if (!appName) {
+            return;
+        }
+
+        await callback(appName, manager);
+        break;
+    }
+}
+
 /**
  * Command: Load application to ESP32
  */
 async function startAppCommand(): Promise<void> {
     try {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor) {
-            return;
-        }
-
-        for (const [rootPath, manager] of appManagers.entries()) {
-            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
-                await manager.startAppOfFile(activeEditor.document.uri.fsPath);
-                break;
-            }
-        }
+       await selectApp(async (appName, manager) => {
+            await manager.startAppByName(appName);
+       });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`Load failed: ${message}`);
@@ -383,17 +390,9 @@ async function startAppCommand(): Promise<void> {
  */
 async function stopAppCommand(): Promise<void> {
     try {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor) {
-            return;
-        }
-
-        for (const [rootPath, manager] of appManagers.entries()) {
-            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
-                await manager.stopAppForPath(activeEditor.document.uri.fsPath);
-                break;
-            }
-        }
+        await selectApp(async (appName, manager) => {
+            await manager.stopAppByName(appName);
+        });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`Stop failed: ${message}`);
