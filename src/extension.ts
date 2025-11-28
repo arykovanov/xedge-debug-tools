@@ -357,8 +357,15 @@ async function selectApp(callback: (appName: string, appManager: XEdgeAppManager
             continue;
         }
 
-            // Ask user to select application to load
-        const appName = await vscode.window.showQuickPick(manager.getAppNames(), {
+        // If there is only one application, use it automatically
+        const appNames = manager.getAppNames();
+        if (appNames.length === 1) {
+            await callback(appNames[0], manager);
+            break;
+        }
+
+        // Ask user to select application to load
+        const appName = await vscode.window.showQuickPick(appNames, {
             placeHolder: 'Select application to load'
         });
 
