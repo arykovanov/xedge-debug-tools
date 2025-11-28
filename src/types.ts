@@ -3,8 +3,8 @@
  */
 export interface XEdgeApp {
     name: string;
-    path: string;
     autoReload: boolean;
+    absolutePath: string;
 }
 
 /**

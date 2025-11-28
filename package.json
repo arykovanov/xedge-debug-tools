@@ -65,10 +65,6 @@
         "title": "Xedge: Show Mako Server Logs"
       },
       {
-        "command": "xedge.checkAppStatus",
-        "title": "Xedge: Check Application Status"
-      },
-      {
         "command": "xedge.showExtensionLogs",
         "title": "Xedge: Show Extension Logs"
       }

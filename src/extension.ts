@@ -3,16 +3,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { XEdgeConfig, XEdgeApp, ConnectionStatus } from './types';
 import { XEdgeAppManager } from './xedgeAppManager';
-import { FileWatcher } from './fileWatcher';
+// import { FileWatcher } from './fileWatcher';
 import { MakoServerManager } from './makoServerManager';
 import { logger } from './logger';
 
-let appManager: XEdgeAppManager;
-let fileWatcher: FileWatcher;
+const appManagers: Map<string, XEdgeAppManager> = new Map();
+// let fileWatcher: FileWatcher;
 let statusBarItem: vscode.StatusBarItem;
-let config: XEdgeConfig | null = null;
 let makoServer: MakoServerManager;
-let helperAppWhatcher: NodeJS.Timeout | null = null;
 
 /**
  * Extension activation
@@ -26,8 +24,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Initialize managers
     logger.info('Initializing managers...');
-    appManager = new XEdgeAppManager();
-    fileWatcher = new FileWatcher(handleFileChange);
+    appManagers.clear();
+    // fileWatcher = new FileWatcher(handleFileChange);
     makoServer = new MakoServerManager(context.extensionPath, vscode as any);
 
     // Create status bar item
@@ -53,11 +51,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Load configuration
-    loadConfiguration();
-
-    helperAppWhatcher = setInterval(loadHelperApp, 3000);
-
     // Register commands
     context.subscriptions.push(
         vscode.commands.registerCommand('xedge.startApp', startAppCommand),
@@ -70,19 +63,24 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('xedge.stopMakoServer', stopMakoServerCommand),
         vscode.commands.registerCommand('xedge.restartMakoServer', restartMakoServerCommand),
         vscode.commands.registerCommand('xedge.showMakoLogs', showMakoLogsCommand),
-        vscode.commands.registerCommand('xedge.checkAppStatus', checkAppStatusCommand),
         vscode.commands.registerCommand('xedge.showExtensionLogs', showExtensionLogsCommand)
     );
 
     // Watch for config file changes
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (workspaceFolder) {
-        const configWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(workspaceFolder, '**/xedge-apps.json')
-        );
-        configWatcher.onDidChange(loadConfiguration);
-        configWatcher.onDidCreate(loadConfiguration);
-        context.subscriptions.push(configWatcher);
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders) {
+        for (const workspaceFolder of workspaceFolders) {
+            const configPath = vscode.Uri.joinPath(workspaceFolder.uri, 'xedge-apps.json');
+            const configWatcher = vscode.workspace.createFileSystemWatcher(configPath.fsPath);
+            configWatcher.onDidChange(startAppManager);
+            configWatcher.onDidCreate(startAppManager);
+            configWatcher.onDidDelete(stopAppManager);
+            context.subscriptions.push(configWatcher);
+
+            if (fs.existsSync(configPath.fsPath)) {
+                startAppManager(configPath);
+            }
+        }
     }
 
     logger.info('✓ Xedge Development Tools extension activated successfully');
@@ -94,77 +92,17 @@ export function activate(context: vscode.ExtensionContext) {
  * Extension deactivation
  */
 export function deactivate() {
-    if (fileWatcher) {
-        fileWatcher.dispose();
-    }
+    // if (fileWatcher) {
+    //     fileWatcher.dispose();
+    // }
     if (makoServer) {
         makoServer.dispose();
     }
     logger.dispose();
-
-    helperAppWhatcher?.close();
 }
 
-/**
- * Load vscode_app helper application to ESP32
- */
-
-let loadHelperAppBusy: boolean = false;
-async function loadHelperApp(): Promise<void> {
-    try {
-        if (loadHelperAppBusy) {
-            return;
-        }
-
-        loadHelperAppBusy = true;
-        logger.info('Loading vscode_app helper application to ESP32...');
-        
-        // Check if ESP32 IP is configured
-        if (!config || !config.esp32.ip) {
-            logger.warn('ESP32 IP not configured, cannot load vscode_app helper. Set esp32.ip in xedge-apps.json');
-            loadHelperAppBusy = false;
-            return;
-        }
-    
-        const status = await appManager.getAppConfig('vscode_app')
-        if (status && status.running) {
-            logger.info('vscode_app helper application already exists on ESP32');
-            loadHelperAppBusy = false;
-            return;
-        }
-
-        // Create app config for vscode_app
-        const helperApp: XEdgeApp = {
-            name: 'vscode_app',
-            path: path.join(path.dirname(__dirname), 'vscode_app'),
-            autoReload: true
-        };
-        
-        logger.info(`Helper app path: ${helperApp.path}`);
-        
-
-        // Load the helper app
-        await appManager.startApp(helperApp);
-       
-        logger.info('✓ vscode_app helper application loaded successfully');
-    } catch (error) {
-        logger.error('Failed to load vscode_app helper application:', error);
-        // Don't show error to user - helper app is optional
-        logger.warn('Extension will work but ESP32 restart command may not be available');
-    }
-    
-    loadHelperAppBusy = false;
-}
-
-/**
- * Find config file in workspace folder or upwards from currently opened file
- */
-function findConfigFile(workspaceFolders: readonly vscode.WorkspaceFolder[]): string | null {
-    // Search for 'xedge-apps.json' upwards from currently opened file, or fall back to workspace root
-    let configPath: string | null = null;
+function getActiveWorkspaceFolder(workspaceFolders: readonly vscode.WorkspaceFolder[]): string | null {
     const activeEditor = vscode.window.activeTextEditor;
-    let activeWorkspaceFolder: string | undefined;
-    // Open config file the workspace folder containing current editor
     if (!activeEditor) {
         return null;
     }
@@ -172,143 +110,133 @@ function findConfigFile(workspaceFolders: readonly vscode.WorkspaceFolder[]): st
     const activePath = activeEditor.document.uri.fsPath
     for (const [, workspaceFolder] of workspaceFolders.entries()) {
         if (activePath.startsWith(workspaceFolder.uri.fsPath)) {
-            activeWorkspaceFolder = workspaceFolder.uri.fsPath;
-            break;
+            return workspaceFolder.uri.fsPath;
         }
     }
 
-    if (activeWorkspaceFolder) {
-        configPath = path.join(activeWorkspaceFolder, 'xedge-apps.json');
-    }
-    
-    return configPath;
+    return null;
 }
 
+
 /**
- * Load configuration from xedge-apps.json
+ * Load configuration from workspace folder
  */
 
-function loadConfiguration(): void {
+async function startAppManager(configFileUri: vscode.Uri): Promise<void> {
+    const configFolder = vscode.Uri.file(path.dirname(configFileUri.fsPath));
+    const config = await loadConfigurationFromFolder(configFolder);
+    const appManager = new XEdgeAppManager(config);
+    appManagers.set(path.dirname(configFileUri.fsPath), appManager);
+    updateStatusBar(ConnectionStatus.Connected, config.esp32.ip);
+}
+
+async function stopAppManager(configFileUri: vscode.Uri): Promise<void> {
+    appManagers.delete(configFileUri.fsPath);
+}
+
+async function loadConfigurationFromFolder(configFolder: vscode.Uri): Promise<XEdgeConfig> {
     logger.info('Loading configuration...');
     
-    try {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            logger.warn('No workspace folder found');
-            return;
+    const configFilePath = path.join(configFolder.fsPath, 'xedge-apps.json');
+    logger.debug(`Loading configuration from file: ${configFilePath}`);
+    const configContent = await fs.promises.readFile(configFilePath, 'utf8');
+    logger.debug('Parsing config file content:', configContent);
+    const config = JSON.parse(configContent);
+    logger.info('Configuration parsed successfully');
+
+    let errMsg: string | undefined = undefined;
+    // Initialize app manager
+    if (!config.esp32.ip) {
+        errMsg = 'ESP32 IP not configured.';
+    } else if (!config.localIp) {
+        errMsg = 'Local IP not configured.';
+    } else if (!config.apps.length) {
+        errMsg = 'No applications configured.';
+    } else
+
+    for (const app of config.apps) {
+        if (!app.name) {
+            errMsg = errMsg || '';
+            errMsg += 'Application name is missing.';
+            break;
         }
-
-        const configFilePath = findConfigFile(workspaceFolders);
-
-        if (!configFilePath) {
-            logger.warn('No config file found');
-            return;
+        if (!app.path) {
+            errMsg = errMsg || '';
+            errMsg += 'Application path is missing.';
         }
-
-        logger.debug(`Looking for config file: ${configFilePath}`);
-
-        if (!fs.existsSync(configFilePath)) {
-            logger.warn('Config file not found:', configFilePath);
-            vscode.window.showWarningMessage(
-                'xedge-apps.json not found. Would you like to create one?',
-                'Create'
-            ).then(selection => {
-                if (selection === 'Create') {
-                    createDefaultConfig();
-                }
-            });
-            return;
+        if (!app.autoReload) {
+            errMsg = errMsg || '';
+            errMsg += 'Application auto-reload flag is missing.';
         }
-
-        const configContent = fs.readFileSync(configFilePath, 'utf8');
-        logger.debug('Config file content:', configContent);
-        
-        config = JSON.parse(configContent);
-        logger.info('Configuration parsed successfully');
-
-        if (config) {
-            logger.debug('Configuration details:', config);
-            
-            // Initialize app manager
-            if (config.esp32.ip && config.localIp) {
-                logger.info(`Initializing app manager with ESP32 IP: ${config.esp32.ip}, Local IP: ${config.localIp}`);
-                appManager.initialize(config.esp32.ip, config.localIp);
-                updateStatusBar(ConnectionStatus.Connected, config.esp32.ip);
-            } else {
-                logger.warn('ESP32 IP or Local IP not configured yet');
-            }
-
-            // Start file watching
-            const autoReloadEnabled = vscode.workspace.getConfiguration('xedge').get<boolean>('autoReload');
-            if (autoReloadEnabled) {
-                logger.info(`Starting file watcher for ${config.apps.length} applications`);
-                fileWatcher.watch(config.apps);
-            } else {
-                logger.info('Auto-reload disabled in settings');
-            }
-
-            logger.info(`✓ Configuration loaded successfully with ${config.apps.length} apps`);
-        }
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error('Failed to load configuration:', error);
-        vscode.window.showErrorMessage(`Failed to load configuration: ${message}`);
     }
+
+    if (errMsg) {
+        logger.error(errMsg);
+        throw new Error('Invalid configuration: ' + errMsg);
+    }
+
+    logger.info(`Initializing app manager with ESP32 IP: ${config.esp32.ip}, Local IP: ${config.localIp}`);
+
+    const xedgeConfig: XEdgeConfig = {
+        apps: [],
+        localIp: config.localIp,
+        esp32: config.esp32,
+    };
+
+    for (const app of config.apps) {
+        xedgeConfig.apps.push({
+            name: app.name,
+            autoReload: app.autoReload,
+            absolutePath: path.join(configFolder.fsPath, app.path)
+        });
+    }
+
+    return xedgeConfig;
 }
 
 /**
  * Create default configuration file with comprehensive documentation
  */
 function createDefaultConfig(): void {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
+    const activeWorkspaceFolder = getActiveWorkspaceFolder(vscode.workspace.workspaceFolders || []);
+    if (!activeWorkspaceFolder) {
+        vscode.window.showErrorMessage('No active workspace folder found');
         return;
     }
 
     const defaultConfig = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$comment": "Xedge Development Tools Configuration File",
-        
         "apps": [
             {
-                "name": "example_app",
+                "$name_comment": "Application name",
+                "name": "my_lsp_app",
+                "$path_comment": "Absolute or relative path to LSP application directory",
                 "path": "./lsp_app",
+                "$autoReload_comment": "Enable file watching and auto-reload application on file changes",
                 "autoReload": true,
-                "$comment": "Application configuration: name - app identifier, path - absolute or relative path to LSP app directory, autoReload - enable file watching"
             }
         ],
         
-        "localIp": "192.168.0.100",
         "$localIp_comment": "IP address of this machine running VSCode and Mako WebDAV server. Find with: ip addr show | grep 'inet ' | grep -v 127.0.0.1",
+        "localIp": "192.168.0.100",
         
         "esp32": {
-            "ip": "",
-            "$ip_comment": "ESP32 device IP address. Set this to your ESP32's IP address on the network. Example: 192.168.0.102"
+            "$ip_comment": "ESP32 device IP address. Set this to your ESP32's IP address on the network. Example: 192.168.0.102",
+            "ip": ""
         }
     };
 
-    const configPath = path.join(workspaceFolder.uri.fsPath, 'xedge-apps.json');
-    fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
-    vscode.window.showInformationMessage('Created xedge-apps.json. Please update it with your settings.');
-    
-    // Open the file
-    vscode.workspace.openTextDocument(configPath).then(doc => {
-        vscode.window.showTextDocument(doc);
-    });
-}
+    const configPath = path.join(activeWorkspaceFolder, 'xedge-apps.json');
 
-/**
- * Create comprehensive default configuration file with all options documented
- */
-function createComprehensiveConfig(): void {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-        vscode.window.showErrorMessage('No workspace folder open. Please open a folder first.');
-        return;
+    const saveConfigFunc = () => {
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+        vscode.window.showInformationMessage('Created xedge-apps.json. Please update it with your settings.');
+        
+        // Open the file
+        vscode.workspace.openTextDocument(configPath).then(doc => {
+            vscode.window.showTextDocument(doc);
+        });
     }
-
-    const configPath = path.join(workspaceFolder.uri.fsPath, 'xedge-apps.json');
-    
     // Check if file already exists
     if (fs.existsSync(configPath)) {
         vscode.window.showWarningMessage(
@@ -317,77 +245,14 @@ function createComprehensiveConfig(): void {
             'Cancel'
         ).then(selection => {
             if (selection === 'Overwrite') {
-                writeComprehensiveConfig(configPath);
+                saveConfigFunc();
+            } else {
+                vscode.window.showInformationMessage('xedge-apps.json not overwritten.');
             }
         });
     } else {
-        writeComprehensiveConfig(configPath);
+        saveConfigFunc();
     }
-}
-
-/**
- * Write comprehensive configuration to file
- */
-function writeComprehensiveConfig(configPath: string): void {
-    const comprehensiveConfig = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$comment": "Xedge Development Tools Configuration File - Complete Reference",
-        
-        "apps": [
-            {
-                "name": "example_app",
-                "path": "./lsp_app",
-                "autoReload": true,
-                "$comment": "First example application"
-            },
-            {
-                "name": "another_app",
-                "path": "/home/user/projects/xedge/my_app",
-                "autoReload": false,
-                "$comment": "Second example with absolute path and auto-reload disabled"
-            }
-        ],
-        "$apps_comment": "Array of Xedge applications to manage. Each app needs: name (identifier), path (absolute or relative), autoReload (true/false for file watching)",
-        
-        "localIp": "192.168.0.100",
-        "$localIp_comment": "REQUIRED: IP address of the machine running VSCode and Mako WebDAV server. ESP32 will fetch app files from this IP. Find your IP with: ip addr show | grep 'inet ' | grep -v 127.0.0.1 (Linux) or ipconfig (Windows)",
-        
-        "esp32": {
-            "ip": "",
-            "$ip_comment": "ESP32 device IP address. Set this to your ESP32's IP address on the network. Example: 192.168.0.102"
-        },
-        
-        "$usage_notes": {
-            "watched_files": "Auto-reload monitors: **/*.lua, **/.preload, **/.config files",
-            "debounce_delay": "500ms delay to batch multiple file changes",
-            "webdav_url_format": "http://<localIp>/<fsname>/<app_absolute_path>",
-            "fsname_source": "Read from server.conf in extension directory",
-            "commands": [
-                "Xedge: Connect ESP32 to WiFi - Connect device and capture IP",
-                "Xedge: Load Application to ESP32 - Load specific app",
-                "Xedge: Reload Current Application - Quick reload (Ctrl+Shift+R)",
-                "Xedge: Reload All Applications - Reload all configured apps",
-                "Xedge: Restart ESP32 Device - Full device restart",
-                "Xedge: Create Default Configuration File - Create this file"
-            ],
-            "workflow": [
-                "1. Update localIp to your machine's IP address",
-                "2. Start Mako server: mako -c server.conf",
-                "3. Connect ESP32 to WiFi (Command Palette)",
-                "4. Load vscode_app helper application",
-                "5. Load your applications",
-                "6. Edit files and auto-reload will happen!"
-            ]
-        }
-    };
-
-    fs.writeFileSync(configPath, JSON.stringify(comprehensiveConfig, null, 2));
-    vscode.window.showInformationMessage('Created comprehensive xedge-apps.json with all options documented!');
-    
-    // Open the file
-    vscode.workspace.openTextDocument(configPath).then(doc => {
-        vscode.window.showTextDocument(doc);
-    });
 }
 
 /**
@@ -416,67 +281,29 @@ function updateStatusBar(status: ConnectionStatus, ip?: string): void {
 }
 
 /**
- * Handle file changes from file watcher
- */
-async function handleFileChange(app: XEdgeApp): Promise<void> {
-    logger.info(`📝 File change detected in app "${app.name}", triggering reload...`);
-    
-    try {
-        vscode.window.showInformationMessage(`Restarting "${app.name}" due to file changes...`);
-        await appManager.restartApp(app);
-        logger.info(`✓ Auto-restart completed for "${app.name}"`);
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error(`Auto-restart failed for "${app.name}":`, error);
-        vscode.window.showErrorMessage(`Auto-restart failed: ${message}`);
-    }
-}
-
-async function selectApp(): Promise<XEdgeApp | undefined> {
-    // Try to determine app from current file
-    const activeEditor = vscode.window.activeTextEditor;
-    let selectedApp: XEdgeApp | undefined;
-
-    if (activeEditor) {
-        selectedApp = fileWatcher.getAppForFile(activeEditor.document.uri.fsPath);
-    }
-
-    // If not found, let user select
-    if (!selectedApp) {
-        const appNames = config?.apps.map(app => app.name) || [];
-        const selected = await vscode.window.showQuickPick(appNames, {
-            placeHolder: 'Select application to restart'
-        });
-
-        if (!selected) {
-            return;
-        }
-
-        selectedApp = config?.apps.find(app => app.name === selected);
-    }
-
-    return selectedApp;
-}
-/**
  * Command: Restart application on ESP32
  */
 async function restartAppCommand(): Promise<void> {
-    logger.logCommand('restartApp', 'User initiated app restart');
     
-    if (!config || config.apps.length === 0) {
-        logger.warn('No applications configured');
-        vscode.window.showErrorMessage('No applications configured in xedge-apps.json');
-        return;
-    }
-
     try {
-        const selectedApp = await selectApp();
-        if (!selectedApp) {
+
+        logger.logCommand('restartApp', 'User initiated app restart');
+
+        // Try to determine app from current file
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
             return;
         }
 
-        logger.info(`Selected app for restart: "${selectedApp.name}"`);
-        await appManager.restartApp(selectedApp);
+        for (const [rootPath, manager] of appManagers.entries()) {
+            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
+                manager.stopAppForPath(activeEditor.document.uri.fsPath).then(() => {
+                    manager.startAppOfFile(activeEditor.document.uri.fsPath)
+                });
+                break
+            }
+        }
+
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error('Restart command failed:', error);
@@ -488,24 +315,18 @@ async function restartAppCommand(): Promise<void> {
  * Command: Reload all applications
  */
 async function reloadAllAppsCommand(): Promise<void> {
-    logger.logCommand('reloadAllApps', `Reloading ${config?.apps.length || 0} applications`);
-    
-    if (!config || config.apps.length === 0) {
-        logger.warn('No applications configured');
-        vscode.window.showErrorMessage('No applications configured in xedge-apps.json');
-        return;
-    }
-
     try {
-        vscode.window.showInformationMessage(`Reloading ${config.apps.length} applications...`);
+        // const activeEditor = vscode.window.activeTextEditor;
+        // if (!activeEditor) {
+        //     return;
+        // }
 
-        for (const app of config.apps) {
-            logger.info(`Reloading app ${config.apps.indexOf(app) + 1}/${config.apps.length}: "${app.name}"`);
-            await appManager.restartApp(app);
-        }
-
-        logger.info(`✓ All ${config.apps.length} applications reloaded successfully`);
-        vscode.window.showInformationMessage('All applications reloaded successfully');
+        // for (const [rootPath, manager] of appManagers.entries()) {
+        //     if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
+        //         await manager.reloadAllApps();
+        //         break;
+        //     }
+        // }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error('Reload all failed:', error);
@@ -518,14 +339,16 @@ async function reloadAllAppsCommand(): Promise<void> {
  */
 async function restartESP32Command(): Promise<void> {
     try {
-        const confirm = await vscode.window.showWarningMessage(
-            'Restart ESP32 device?',
-            { modal: true },
-            'Restart'
-        );
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
 
-        if (confirm === 'Restart') {
-            await appManager.restartESP32();
+        for (const [rootPath, manager] of appManagers.entries()) {
+            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
+                await manager.restartESP32();
+                break;
+            }
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -538,14 +361,17 @@ async function restartESP32Command(): Promise<void> {
  */
 async function startAppCommand(): Promise<void> {
     try {
-        const selectedApp = await selectApp();
-        if (!selectedApp) {
-            vscode.window.showErrorMessage('No application selected');
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
             return;
         }
 
-        logger.info(`Selected app for start: "${selectedApp.name}"`);
-        await appManager.startApp(selectedApp);
+        for (const [rootPath, manager] of appManagers.entries()) {
+            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
+                await manager.startAppOfFile(activeEditor.document.uri.fsPath);
+                break;
+            }
+        }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`Load failed: ${message}`);
@@ -557,14 +383,17 @@ async function startAppCommand(): Promise<void> {
  */
 async function stopAppCommand(): Promise<void> {
     try {
-        const selectedApp = await selectApp();
-        if (!selectedApp) {
-            vscode.window.showErrorMessage('No application selected');
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
             return;
         }
 
-        await appManager.stopApp(selectedApp);
-
+        for (const [rootPath, manager] of appManagers.entries()) {
+            if (activeEditor.document.uri.fsPath.startsWith(rootPath)) {
+                await manager.stopAppForPath(activeEditor.document.uri.fsPath);
+                break;
+            }
+        }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`Stop failed: ${message}`);
@@ -575,7 +404,7 @@ async function stopAppCommand(): Promise<void> {
  * Command: Create default configuration file
  */
 async function createConfigCommand(): Promise<void> {
-    createComprehensiveConfig();
+    createDefaultConfig();
 }
 
 /**
@@ -647,49 +476,3 @@ async function showMakoLogsCommand(): Promise<void> {
 async function showExtensionLogsCommand(): Promise<void> {
     logger.show();
 }
-
-/**
- * Command: Check application status
- */
-async function checkAppStatusCommand(): Promise<void> {
-    logger.logCommand('checkAppStatus', 'Checking all application statuses');
-    if (!config || config.apps.length === 0) {
-        vscode.window.showErrorMessage('No applications configured in xedge-apps.json');
-        return;
-    }
-
-    try {
-        // Get list of apps from ESP32
-        const appList = await appManager.getApplicationList();
-        
-        if (appList.length === 0) {
-            vscode.window.showInformationMessage('No applications found on ESP32');
-            return;
-        }
-
-        // Check status of each configured app
-        const statusMessages: string[] = [];
-        
-        for (const app of config.apps) {
-            const status = await appManager.getAppConfig(app.name);
-            if (status) {
-                const runningStatus = status.running ? '✓ Running' : '✗ Not Running';
-                const autostartStatus = status.autostart ? 'Autostart: ON' : 'Autostart: OFF';
-                statusMessages.push(`${app.name}: ${runningStatus} (${autostartStatus})`);
-            } else {
-                statusMessages.push(`${app.name}: Not found on ESP32`);
-            }
-        }
-
-        // Show status in quick pick
-        // const selected = await vscode.window.showQuickPick(statusMessages, {
-        //     placeHolder: 'Application Status on ESP32',
-        //     canPickMany: false
-        // });
-
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`Failed to check status: ${message}`);
-    }
-}
-

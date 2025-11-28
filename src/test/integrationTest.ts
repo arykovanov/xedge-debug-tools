@@ -140,8 +140,7 @@ async function runIntegrationTest(): Promise<boolean> {
     
     // Step 3: Initialize app manager
     log('\n[Step 3] Initializing Xedge App Manager...', colors.blue);
-    const appManager = new XEdgeAppManager();
-    appManager.initialize(config.esp32.ip, config.localIp);
+    const appManager = new XEdgeAppManager(config);
     log('✓ App manager initialized', colors.green);
     
     // Step 4: Load vscode_app
@@ -149,14 +148,8 @@ async function runIntegrationTest(): Promise<boolean> {
     const vscodeFolderPath = path.join(extensionPath, 'vscode_app');
     log(`  vscode_app path: ${vscodeFolderPath}`, colors.blue);
     
-    const vscodeApp: XEdgeApp = {
-        name: 'vscode_app',
-        path: vscodeFolderPath,
-        autoReload: false
-    };
-    
     try {
-        await appManager.startApp(vscodeApp);
+        await appManager.startAppOfFile(vscodeFolderPath);
         log('✓ vscode_app loaded to ESP32', colors.green);
         
         // Wait for app to initialize
@@ -195,7 +188,7 @@ async function runIntegrationTest(): Promise<boolean> {
     log('\n[Step 6] Cleaning up - deleting vscode_app from ESP32...', colors.blue);
     
     try {
-        await appManager.deleteApp('vscode_app');
+        await appManager.deleteAppForPath(vscodeFolderPath);
         log('✓ vscode_app deleted from ESP32', colors.green);
     } catch (error) {
         log(`⚠ Failed to delete vscode_app: ${error}`, colors.yellow);

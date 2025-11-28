@@ -29,7 +29,7 @@ export class FileWatcher {
         this.apps = apps;
 
         // Watch patterns: *.lua, .preload, .config
-        const patterns = ['**/*.lua', '**/.preload', '**/.config'];
+        const patterns = ['/**/*.lua', '/**/.preload', '/**/.config'];
         const appsWithAutoReload = apps.filter(a => a.autoReload);
         
         logger.info(`Watching ${appsWithAutoReload.length} apps with auto-reload enabled`);
@@ -46,18 +46,11 @@ export class FileWatcher {
                 continue;
             }
 
-            // Get absolute path
-            let appPath = app.path;
-            if (!path.isAbsolute(appPath)) {
-                appPath = path.join(workspaceFolder.uri.fsPath, appPath);
-            }
-
-            logger.debug(`Setting up watchers for app "${app.name}" at: ${appPath}`);
+            logger.debug(`Setting up watchers for app "${app.name}" at: ${app.absolutePath}`);
 
             // Create watchers for each pattern in the app directory
             for (const pattern of patterns) {
-                const globPattern = new vscode.RelativePattern(appPath, pattern);
-                const watcher = vscode.workspace.createFileSystemWatcher(globPattern);
+                const watcher = vscode.workspace.createFileSystemWatcher(app.absolutePath + pattern);
 
                 // Handle file changes with debouncing
                 watcher.onDidChange((uri) => this.handleFileChange(app, uri, 'changed'));
@@ -98,31 +91,6 @@ export class FileWatcher {
 
         this.debounceTimers.set(appKey, timer);
         logger.debug(`Debounce timer set for "${app.name}" (${this.debounceDelay}ms)`);
-    }
-
-    /**
-     * Get the app that contains the given file
-     */
-    public getAppForFile(filePath: string): XEdgeApp | undefined {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            return undefined;
-        }
-
-        for (const app of this.apps) {
-            let appPath = app.path;
-            if (!path.isAbsolute(appPath)) {
-                appPath = path.join(workspaceFolder.uri.fsPath, appPath);
-            }
-
-            // Check if file is within app directory
-            const relativePath = path.relative(appPath, filePath);
-            if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
-                return app;
-            }
-        }
-
-        return undefined;
     }
 
     /**

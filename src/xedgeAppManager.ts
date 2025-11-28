@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance } from 'axios';
 import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
-import { XEdgeApp, ApplicationConfig } from './types';
+import { XEdgeApp, ApplicationConfig, XEdgeConfig } from './types';
 import { logger } from './logger';
 
 // VSCode API interface (simplified for DI)
@@ -33,91 +33,89 @@ function log(msg: string): void {
  * Manages Xedge applications on ESP32 device via REST API
  */
 export class XEdgeAppManager {
-    private esp32Ip: string = '';
-    private localIp: string = '';
-    private fsname: string = 'fs';
+    public config: XEdgeConfig; // Configuration
+    private webDavUrl: string;
     private axiosInstance: AxiosInstance;
+    private helperAppWhatcher: NodeJS.Timeout | null = null;
+    private loadHelperAppBusy: boolean = false;
 
-    constructor() {
+    constructor(config: XEdgeConfig) {
+        this.config = config;
+        this.webDavUrl = `http://${config.localIp}:9357/fs`;
         this.axiosInstance = axios.create({
             timeout: 10000,
             headers: {
                 'Content-Type': 'application/json'
             }
         });
+        this.helperAppWhatcher = setInterval(this.loadHelperApp.bind(this), 3000);
     }
 
-    /**
-     * Initialize the manager with configuration
-     */
-    public initialize(esp32Ip: string, localIp: string): void {
-        this.esp32Ip = esp32Ip;
-        this.localIp = localIp;
-        logger.info('Initializing XEdgeAppManager', { esp32Ip, localIp });
-        this.loadServerConfig();
+    public getAppNames(): string[] {
+        return this.config.apps.map(app => app.name);
     }
 
-    /**
-     * Load server.conf to get fsname
-     */
-    private loadServerConfig(): void {
+    public dispose(): void {
+        if (this.helperAppWhatcher) {
+            clearInterval(this.helperAppWhatcher);
+            this.helperAppWhatcher = null;
+        }
+    }
+
+    private async loadHelperApp(): Promise<void> {
         try {
-            const extensionPath = path.dirname(__dirname);
-            const serverConfPath = path.join(extensionPath, 'server.conf');
-            
-            logger.debug(`Loading server.conf from: ${serverConfPath}`);
-            
-            if (fs.existsSync(serverConfPath)) {
-                const content = fs.readFileSync(serverConfPath, 'utf8');
-                // Parse Lua-style config: fileserver={fsname="fs",...}
-                const fsnameMatch = content.match(/fsname\s*=\s*"([^"]+)"/);
-                if (fsnameMatch) {
-                    this.fsname = fsnameMatch[1];
-                    logger.info(`Loaded fsname from server.conf: "${this.fsname}"`);
-                } else {
-                    logger.warn('Could not parse fsname from server.conf, using default "fs"');
-                }
-            } else {
-                logger.warn(`server.conf not found at ${serverConfPath}, using default fsname "fs"`);
+            if (this.loadHelperAppBusy) {
+                return;
             }
+    
+            this.loadHelperAppBusy = true;
+            logger.info('Loading vscode_app helper application to ESP32...');
+    
+            const status = await this.wgetAppConfig('vscode_app')
+            if (status && status.running) {
+                logger.info('vscode_app helper application already exists on ESP32');
+                return;
+            }
+    
+            // Create app config for vscode_app
+            const helperApp: XEdgeApp = {
+                name: 'vscode_app',
+                absolutePath: path.join(path.dirname(__dirname), 'vscode_app'),
+                autoReload: true
+            };
+            
+            logger.info(`Helper app absolute path: ${helperApp.absolutePath}`);
+    
+            // Load the helper app
+            await this.startApp(helperApp);
+           
+            logger.info('✓ vscode_app helper application loaded successfully');
         } catch (error) {
-            logger.error('Error loading server.conf:', error);
-            vscode.window.showWarningMessage('Could not load server.conf, using default fsname "fs"');
+            logger.error('Failed to load vscode_app helper application:', error);
+            // Don't show error to user - helper app is optional
+            logger.warn('Extension will work but ESP32 restart command may not be available');
+        }
+        finally {
+            this.loadHelperAppBusy = false;
         }
     }
 
-    /**
-     * Construct WebDAV URL for an application
-     */
-    private buildAppUrl(appPath: string): string {
-        // Convert relative path to absolute if needed
-        const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0];
-        let absolutePath = appPath;
-        
-        if (!path.isAbsolute(appPath) && workspaceFolder) {
-            absolutePath = path.join(workspaceFolder.uri.fsPath, appPath);
-            logger.debug(`Converted relative path "${appPath}" to absolute: "${absolutePath}"`);
-        } else if (!path.isAbsolute(appPath)) {
-            // In test mode without workspace, assume appPath is already correct or use as-is
-            logger.warn(`Relative path "${appPath}" used without workspace folder`);
-            absolutePath = appPath;
+
+    private async getAppConfigByFilePath(appPath: string): Promise<XEdgeApp> {
+        for (const app of this.config.apps) {
+            if (appPath.startsWith(app.absolutePath)) {
+                return app;
+            }
         }
 
-        // Format: http://<localIp>/<fsname>/<absolute_path>
-        const url = `http://${this.localIp}/${this.fsname}${absolutePath}`;
-        logger.debug(`Built WebDAV URL: ${url}`);
-        return url;
+        throw new Error(`App not found for path: "${appPath}". Check xedge-apps.json configuration.`);
     }
 
     /**
      * Get list of all applications on ESP32
      */
     public async getApplicationList(): Promise<ApplicationConfig[]> {
-        if (!this.esp32Ip) {
-            throw new Error('ESP32 IP not configured.');
-        }
-
-        const apiUrl = `http://${this.esp32Ip}/rtl/apps/?cmd=lj`;
+        const apiUrl = `http://${this.config.esp32.ip}/rtl/apps/?cmd=lj`;
         logger.logRequest('GET', apiUrl);
         
         const response = await this.axiosInstance.get(apiUrl);
@@ -131,7 +129,7 @@ export class XEdgeAppManager {
 
         const configs: ApplicationConfig[] = [];
         for (const app of response.data) {
-            const config = await this.getAppConfig(app.n || app.name || app);
+            const config = await this.wgetAppConfig(app.n || app.name || app);
             if (config) {
                 configs.push(config);
             }
@@ -144,37 +142,33 @@ export class XEdgeAppManager {
     /**
      * Get application status
      */
-    public async getAppConfig(appName: string): Promise<ApplicationConfig | null> {
+    public async wgetAppConfig(appName: string): Promise<ApplicationConfig | null> {
         try {
-        if (!this.esp32Ip) {
-            throw new Error('ESP32 IP not configured.');
-        }
+            const apiUrl = `http://${this.config.esp32.ip}/rtl/apps/${appName}/.appcfg`;
+            logger.logRequest('GET', apiUrl);
+            
+            const response = await this.axiosInstance.get(apiUrl);
+            logger.logResponse('GET', apiUrl, response.status, response.data);
 
-        const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/.appcfg`;
-        logger.logRequest('GET', apiUrl);
-        
-        const response = await this.axiosInstance.get(apiUrl);
-        logger.logResponse('GET', apiUrl, response.status, response.data);
+            if (response.status !== 200) {
+                throw new Error('Invalid response: ' + JSON.stringify(response));
+            }
+            
+            if (! response.data || typeof response.data !== 'object') {
+                throw new Error('App "' + appName + '" status response invalid: ' + JSON.stringify(response.data));
+            }
 
-        if (response.status !== 200) {
-            throw new Error('Invalid response: ' + JSON.stringify(response));
-        }
-        
-        if (! response.data || typeof response.data !== 'object') {
-            throw new Error('App "' + appName + '" status response invalid: ' + JSON.stringify(response.data));
-        }
+            const status: ApplicationConfig = {
+                name: response.data.name,
+                url: response.data.url,
+                running: response.data.running,
+                autostart: response.data.autostart,
+                dirname: response.data.dirname,
+                priority: response.data.priority
+            };
 
-        const status: ApplicationConfig = {
-            name: response.data.name,
-            url: response.data.url,
-            running: response.data.running,
-            autostart: response.data.autostart,
-            dirname: response.data.dirname,
-            priority: response.data.priority
-        };
-
-        logger.info(`App "${appName}" status:`, status);
-        return status;
+            logger.info(`App "${appName}" status:`, status);
+            return status;
         } catch (error: any) {
             const axiosError = error as AxiosError;
             if (axiosError?.status === 404) {
@@ -190,7 +184,7 @@ export class XEdgeAppManager {
      */
     private async checkAndWarnAppStatus(appName: string): Promise<void> {
         try {
-            const config = await this.getAppConfig(appName);
+            const config = await this.wgetAppConfig(appName);
             
             if (config && !config.running) {
                 vscode.window.showWarningMessage(
@@ -214,25 +208,24 @@ export class XEdgeAppManager {
      * Load (or reload) an application on ESP32
      * Checks if app already exists and deletes it first if needed
      */
-    public async startApp(app: XEdgeApp): Promise<void> {
-        logger.info(`Loading application "${app.name}"...`);
-        
-        if (!this.esp32Ip) {
-            const error = 'ESP32 IP not configured. Please connect to WiFi first.';
-            logger.error(error);
-            throw new Error(error);
-        }
+    public async startAppOfFile(appPath: string): Promise<void> {
+        const app = await this.getAppConfigByFilePath(appPath);
+        await this.startApp(app);
+    }
 
-        const appConfig = await this.getAppConfig(app.name);
-        if (appConfig && appConfig.running) {
+    private async startApp(app: XEdgeApp): Promise<void> {
+        logger.info(`Loading application "${app.name}"...`);
+    
+        const appConfig = await this.wgetAppConfig(app.name);
+        const appWebDavUrl = this.webDavUrl + app.absolutePath;
+        if (appConfig && appConfig.running && appConfig.url === appWebDavUrl) {
             vscode.window.showInformationMessage(`App "${app.name}" is already running`);
             return;
         }
 
-        const url = this.buildAppUrl(app.path);
         const payload: ApplicationConfig = {
             name: app.name,
-            url: url,
+            url: appWebDavUrl,
             running: true,  // Start the app immediately after loading
             autostart: appConfig?.autostart || false,
             dirname: app.name,  // dirname is same as app name - makes app accessible at http://{localIp}/{dirname}
@@ -240,7 +233,7 @@ export class XEdgeAppManager {
         };
 
         logger.debug('Load payload:', payload);
-        logger.info(`App will be accessible at: http://${this.localIp}/${app.name}`);
+        logger.info(`App will be accessible at: ${appWebDavUrl}`);
 
         try {
             // There is strange invalid behavior:
@@ -255,10 +248,10 @@ export class XEdgeAppManager {
             // Methods looks like are not respected.
 
             // REST API must be fixed to be consistent and correct and respect CRUD specifications.
-            let apiUrl = `http://${this.esp32Ip}/rtl/apps/net/.appcfg`;
+            let apiUrl = `http://${this.config.esp32.ip}/rtl/apps/net/.appcfg`;
             // It application exists on ESP32, we must update existing app by different URL.
             if (appConfig) {
-                apiUrl = `http://${this.esp32Ip}/rtl/apps/${app.name}/.appcfg`;
+                apiUrl = `http://${this.config.esp32.ip}/rtl/apps/${app.name}/.appcfg`;
             }
 
             logger.logRequest('PUT', apiUrl, payload);
@@ -281,16 +274,15 @@ export class XEdgeAppManager {
      * Load (or reload) an application on ESP32
      * Checks if app already exists and deletes it first if needed
      */
+    public async stopAppForPath(appPath: string): Promise<void> {
+        const app = await this.getAppConfigByFilePath(appPath);
+        await this.stopApp(app);
+    }
+
     public async stopApp(app: XEdgeApp): Promise<void> {
         logger.info(`Stopping application "${app.name}"...`);
         
-        if (!this.esp32Ip) {
-            const error = 'ESP32 IP not configured. Please connect to WiFi first.';
-            logger.error(error);
-            throw new Error(error);
-        }
-
-        const appConfig = await this.getAppConfig(app.name);
+        const appConfig = await this.wgetAppConfig(app.name);
         if (!appConfig) {
             throw new Error(`App "${app.name}" not found`);
         }
@@ -302,7 +294,7 @@ export class XEdgeAppManager {
 
         appConfig.running = false;
 
-        const apiUrl = `http://${this.esp32Ip}/rtl/apps/${app.name}/.appcfg`;
+        const apiUrl = `http://${this.config.esp32.ip}/rtl/apps/${app.name}/.appcfg`;
         logger.logRequest('PUT', apiUrl, appConfig);
         
         const response = await this.axiosInstance.put(apiUrl, appConfig);
@@ -314,32 +306,22 @@ export class XEdgeAppManager {
     }
 
     /**
-     * Reload an application (same as load - just repeat PUT)
-     */
-    public async restartApp(app: XEdgeApp): Promise<void> {
-        logger.info(`Reloading application "${app.name}"...`);
-        await this.stopApp(app);
-        await this.startApp(app);
-    }
-
-    /**
      * Delete an application from ESP32
      */
-    public async deleteApp(appName: string): Promise<void> {
-        logger.info(`Deleting application "${appName}"...`);
-        
-        if (!this.esp32Ip) {
-            const error = 'ESP32 IP not configured. Please connect to WiFi first.';
-            logger.error(error);
-            throw new Error(error);
-        }
+    public async deleteAppForPath(appPath: string): Promise<void> {
+        const app = await this.getAppConfigByFilePath(appPath);
+        await this.deleteApp(app);
+    }
 
+    private async deleteApp(app: XEdgeApp): Promise<void> {
         try {
+            logger.info(`Deleting application from ESP32: "${app.name}"...`);
+
             const formData = new FormData();
             formData.append('cmd', 'rmt');
             formData.append('file', '.appcfg');
 
-            const apiUrl = `http://${this.esp32Ip}/rtl/apps/${appName}/`;
+            const apiUrl = `http://${this.config.esp32.ip}/rtl/apps/${app.name}/`;
             logger.logRequest('POST', apiUrl, { cmd: 'rmt', file: '.appcfg' });
             
             // const headers = formData.getHeaders()
@@ -349,13 +331,13 @@ export class XEdgeAppManager {
             const response = await this.axiosInstance.post(apiUrl, formData, {headers: headers});
             
             logger.logResponse('POST', apiUrl, response.status, response.data);
-            logger.info(`✓ Application "${appName}" deleted successfully`);
+            logger.info(`✓ Application "${app.name}" deleted successfully`);
             
-            vscode.window.showInformationMessage(`Application "${appName}" deleted successfully`);
+            vscode.window.showInformationMessage(`Application "${app.name}" deleted successfully`);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            logger.error(`Failed to delete app "${appName}":`, error);
-            throw new Error(`Failed to delete app "${appName}": ${message}`);
+            logger.error(`Failed to delete app "${app.name}":`, error);
+            throw new Error(`Failed to delete app "${app.name}": ${message}`);
         }
     }
 
@@ -363,17 +345,10 @@ export class XEdgeAppManager {
      * Restart ESP32 device via helper app endpoint
      */
     public async restartESP32(): Promise<void> {
-        logger.info('Sending restart command to ESP32...');
-        
-        if (!this.esp32Ip) {
-            const error = 'ESP32 IP not configured.';
-            logger.error(error);
-            throw new Error(error);
-        }
-
         try {
+            logger.info('Sending restart command to ESP32...');
             // vscode_app is accessible at /vscode_app (dirname)
-            const apiUrl = `http://${this.esp32Ip}/vscode_app/restart.lsp`;
+            const apiUrl = `http://${this.config.esp32.ip}/vscode_app/restart.lsp`;
             logger.logRequest('POST', apiUrl);
             
             const response = await this.axiosInstance.post(apiUrl);
@@ -393,14 +368,9 @@ export class XEdgeAppManager {
      * Get device info from vscode_app helper
      */
     public async getDeviceInfo(): Promise<any> {
-        logger.info('Getting device info from ESP32...');
-        
-        if (!this.esp32Ip) {
-            throw new Error('ESP32 IP not configured.');
-        }
-
         try {
-            const apiUrl = `http://${this.esp32Ip}/vscode_app/info`;
+            logger.info('Getting device info from ESP32...');
+            const apiUrl = `http://${this.config.esp32.ip}/vscode_app/info`;
             logger.logRequest('GET', apiUrl);
             
             const response = await this.axiosInstance.get(apiUrl);
@@ -417,12 +387,8 @@ export class XEdgeAppManager {
      * Check if ESP32 is reachable
      */
     public async isConnected(): Promise<boolean> {
-        if (!this.esp32Ip) {
-            return false;
-        }
-
         try {
-            await this.axiosInstance.get(`http://${this.esp32Ip}/`, { timeout: 3000 });
+            await this.axiosInstance.get(`http://${this.config.esp32.ip}/`, { timeout: 3000 });
             return true;
         } catch {
             return false;
