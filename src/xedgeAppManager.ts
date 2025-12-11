@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import FormData from 'form-data';
-import * as fs from 'fs';
 import * as path from 'path';
 import { XEdgeApp, ApplicationConfig, XEdgeConfig } from './types';
 import { logger } from './logger';
@@ -80,7 +79,7 @@ export class XEdgeAppManager {
             // Create app config for vscode_app
             const helperApp: XEdgeApp = {
                 name: 'vscode_app',
-                absolutePath: path.join(path.dirname(__dirname), 'vscode_app'),
+                absolutePath: path.join(path.dirname(__dirname), 'vscode_app') + "/",
                 autoReload: true
             };
             

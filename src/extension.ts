@@ -1,14 +1,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { XEdgeConfig, XEdgeApp, ConnectionStatus } from './types';
+import { XEdgeConfig, ConnectionStatus } from './types';
 import { XEdgeAppManager } from './xedgeAppManager';
-// import { FileWatcher } from './fileWatcher';
 import { MakoServerManager } from './makoServerManager';
 import { logger } from './logger';
 
 const appManagers: Map<string, XEdgeAppManager> = new Map();
-// let fileWatcher: FileWatcher;
 let statusBarItem: vscode.StatusBarItem;
 let makoServer: MakoServerManager;
 
@@ -25,7 +23,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize managers
     logger.info('Initializing managers...');
     appManagers.clear();
-    // fileWatcher = new FileWatcher(handleFileChange);
     makoServer = new MakoServerManager(context.extensionPath, vscode as any);
 
     // Create status bar item
@@ -123,14 +120,30 @@ function getActiveWorkspaceFolder(workspaceFolders: readonly vscode.WorkspaceFol
  */
 
 async function startAppManager(configFileUri: vscode.Uri): Promise<void> {
+
+    if (appManagers.has(configFileUri.fsPath)) {
+        return;
+    }
+
     const configFolder = vscode.Uri.file(path.dirname(configFileUri.fsPath));
     const config = await loadConfigurationFromFolder(configFolder);
+
+    if (appManagers.has(configFileUri.fsPath)) {
+        appManagers.get(configFileUri.fsPath)?.dispose();
+        appManagers.delete(configFileUri.fsPath);
+    }
+
     const appManager = new XEdgeAppManager(config);
     appManagers.set(path.dirname(configFileUri.fsPath), appManager);
     updateStatusBar(ConnectionStatus.Connected, config.esp32.ip);
 }
 
 async function stopAppManager(configFileUri: vscode.Uri): Promise<void> {
+    if (!appManagers.has(configFileUri.fsPath)) {
+        return;
+    }
+
+    appManagers.get(configFileUri.fsPath)?.dispose();
     appManagers.delete(configFileUri.fsPath);
 }
 
@@ -155,18 +168,20 @@ async function loadConfigurationFromFolder(configFolder: vscode.Uri): Promise<XE
     } else
 
     for (const app of config.apps) {
-        if (!app.name) {
+        if (typeof app.name !== 'string') {
             errMsg = errMsg || '';
-            errMsg += 'Application name is missing.';
+            errMsg += 'Application name is not a string.';
             break;
         }
-        if (!app.path) {
+        if (typeof app.path !== 'string') {
             errMsg = errMsg || '';
-            errMsg += 'Application path is missing.';
+            errMsg += 'Application path is not a string.';
+            break;
         }
-        if (!app.autoReload) {
+        if (typeof app.autoReload !== 'boolean') {
             errMsg = errMsg || '';
-            errMsg += 'Application auto-reload flag is missing.';
+            errMsg += 'Application auto-reload flag is not a boolean.';
+            break;
         }
     }
 
